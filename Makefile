@@ -21,13 +21,13 @@ cover: ## カバレッジ計測（合計のみ表示。coverage.out に詳細）
 	go test -count=1 -covermode=atomic -coverprofile=coverage.out ./...
 	@go tool cover -func=coverage.out | tail -1
 
-vet:
+vet: ## go vet による静的検査
 	go vet ./...
 
-fmt:
+fmt: ## gofmt で整形
 	gofmt -w .
 
-clean:
+clean: ## dist/ を削除
 	rm -rf $(DIST)
 
 install: build ## 現在のプラットフォームのバイナリを ~/.local/bin/safersync へ
@@ -60,5 +60,5 @@ formula: ## Homebrew formula を dist/release/SHA256SUMS から生成（make rel
 	  echo "✗ $(DIST)/release/SHA256SUMS がありません。先に make release を実行してください" >&2; exit 1; }
 	@sh packaging/homebrew/update-formula.sh $(DIST)/release/SHA256SUMS $(VERSION)
 
-help:
-	@awk -F':.*##' '/^[a-zA-Z_.-]+:/ { printf "  make %-12s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+help: ## このヘルプ
+	@awk -F':.*##' '/^[a-zA-Z][a-zA-Z0-9_.-]*:/ { printf "  make %-12s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
