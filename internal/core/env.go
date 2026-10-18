@@ -90,6 +90,28 @@ func AbsPath(p string) string {
 	return StripTrailingSlashes(p)
 }
 
+// IsInside は child が parent と同じか、parent の中にあるかを返す。
+//
+// 「コピー先がコピー元の中にある」状態で実行すると、追加のみ（--delete なし）の
+// 設計のため、実行のたびにコピーが入れ子（backup/backup/...）になり容量を
+// 圧迫し続ける。開始前にこの事故を検出するために使う。
+// 相対パスはカレント基準の絶対パスにしてから比較し、".." も解決する。
+func IsInside(parent, child string) bool {
+	if parent == "" || child == "" {
+		return false
+	}
+	parent = filepath.Clean(AbsPath(parent))
+	child = filepath.Clean(AbsPath(child))
+	if parent == child {
+		return true
+	}
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
 func cwd() string {
 	dir, err := os.Getwd()
 	if err != nil {

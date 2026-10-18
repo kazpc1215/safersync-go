@@ -20,6 +20,8 @@ import (
 
 // IsMountPoint はパスそのものがマウントポイントかどうか。
 // bash 版と同じく `mount` の出力に " on <path> " が現れるかで判定する。
+// Linux の `mount` はマウントポイントの空白・タブ・改行・バックスラッシュを
+// \040 などの形にエスケープして出すことがあるため、両方の表記を照合する。
 func IsMountPoint(path string) bool {
 	fi, err := os.Stat(path)
 	if err != nil || !fi.IsDir() {
@@ -29,7 +31,40 @@ func IsMountPoint(path string) bool {
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(out), " on "+path+" ")
+	return containsMountPoint(string(out), path)
+}
+
+// containsMountPoint は mount の出力に path がマウントポイントとして現れるかを返す。
+// " on <path> " または行末（" on <path>\n"）に一致すればマウントポイント。
+// path そのものと、エスケープ表記 (\040 など) の両方を照合する。
+func containsMountPoint(out, path string) bool {
+	for _, p := range []string{path, mountEscape(path)} {
+		if strings.Contains(out, " on "+p+" ") || strings.Contains(out, " on "+p+"\n") {
+			return true
+		}
+	}
+	return false
+}
+
+// mountEscape は mount が使うエスケープ表記へ変換する
+// （空白→\040、タブ→\011、改行→\012、バックスラッシュ→\134）。
+func mountEscape(p string) string {
+	var b strings.Builder
+	for _, r := range p {
+		switch r {
+		case ' ':
+			b.WriteString(`\040`)
+		case '\t':
+			b.WriteString(`\011`)
+		case '\n':
+			b.WriteString(`\012`)
+		case '\\':
+			b.WriteString(`\134`)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // Dirname は親ディレクトリへ1段上がる（bash 版 dirname と同じく、区切りの

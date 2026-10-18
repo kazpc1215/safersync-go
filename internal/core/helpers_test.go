@@ -73,6 +73,82 @@ func TestIsRemote(t *testing.T) {
 	}
 }
 
+// コピー先がコピー元の中にある事故（入れ子コピー）を検出できること。
+func TestIsInside(t *testing.T) {
+	cases := []struct {
+		parent, child string
+		want          bool
+	}{
+		{"/a", "/a", true},
+		{"/a", "/a/b", true},
+		{"/a", "/a/b/c", true},
+		{"/a/", "/a/b/", true},
+		{"/a", "/a/b/../b", true},
+		{"/a", "/ab", false},                // 部分文字列ではない
+		{"/a/b", "/a", false},               // 逆方向
+		{"/a", "/b", false},                 // 兄弟
+		{"/a", "/", false},                  // 親は内側ではない
+		{"/", "/a", true},                   // ルートはすべての内側（内蔵ディスク全体 → 任意の場所）
+		{"/Volumes/A", "/Volumes/B", false}, // 別ボリューム（同列）は対象外
+		{"", "/a/b", false},                 // 空は判定しない
+		{"/a", "", false},
+	}
+	for _, c := range cases {
+		if got := IsInside(c.parent, c.child); got != c.want {
+			t.Errorf("IsInside(%q, %q) = %v, want %v", c.parent, c.child, got, c.want)
+		}
+	}
+}
+
+// 相対パスはカレント基準の絶対パスとして親子判定されること。
+func TestIsInsideRelative(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !IsInside("sub", "sub/deeper") {
+		t.Errorf("相対パスの内側判定ができていない (wd=%s)", wd)
+	}
+	if IsInside("sub", "other") {
+		t.Errorf("無関係な相対パスを内側と誤判定した (wd=%s)", wd)
+	}
+}
+
+// Linux の mount が出すエスケープ表記（空白→\040）でもマウントポイントを検出できること。
+func TestContainsMountPoint(t *testing.T) {
+	out := "/dev/sda1 on / type ext4 (rw)\n" +
+		"/dev/sdb1 on /media/My\\040Disk type ext4 (rw)\n" +
+		"/dev/sdc1 on /mnt/data type ext4 (rw)\n"
+
+	if !containsMountPoint(out, "/") {
+		t.Error("/ を検出できない")
+	}
+	if !containsMountPoint(out, "/mnt/data") {
+		t.Error("通常のマウントポイントを検出できない")
+	}
+	// 空白は \040 にエスケープされて出力される
+	if !containsMountPoint(out, "/media/My Disk") {
+		t.Error("空白を含むマウントポイント（\\040 表記）を検出できない")
+	}
+	if containsMountPoint(out, "/mnt/other") {
+		t.Error("マウントされていないパスをマウントポイントと誤判定した")
+	}
+}
+
+func TestMountEscape(t *testing.T) {
+	cases := map[string]string{
+		"/media/My Disk": "/media/My\\040Disk",
+		"/a\tb":          `/a\011b`,
+		"/a\\b":          `/a\134b`,
+		"/plain":         "/plain",
+	}
+	for in, want := range cases {
+		if got := mountEscape(in); got != want {
+			t.Errorf("mountEscape(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // ディスク関連
 // ---------------------------------------------------------------------------
