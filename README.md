@@ -57,7 +57,9 @@ brew install kazpc1215/tap/safersync
 ```
 
 formula は本リポジトリの `packaging/homebrew/safersync.rb` を tap 側の `Formula/` に
-コピーして利用します（tarball の URL と sha256 はリリースの `SHA256SUMS` から採用します）。
+コピーして利用します。この formula は `dist/release/SHA256SUMS` から自動生成し、
+tarball の URL と sha256 をリリースの実物に合わせます（リリース時に `make formula` を実行。
+生成された formula はリリースの添付ファイルにも含まれます）。
 
 ### 方法 D: ソースからビルド（Go 1.27 以降が入っている場合）
 
@@ -116,6 +118,7 @@ make test      # go test ./...
 make vet fmt   # 静的検査 + 整形
 make build     # dist/ に全ターゲット（darwin/amd64, darwin/arm64, linux/amd64, linux/arm64）の単一バイナリ
 make release   # リリース物（dist/release/*.tar.gz + SHA256SUMS）
+make formula   # release の SHA256SUMS から Homebrew formula を生成（tap へコピーする用）
 ```
 
 `make release` の tarball はいずれも静的リンク（`CGO_ENABLED=0`）で、バージョンは

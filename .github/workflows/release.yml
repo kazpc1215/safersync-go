@@ -24,10 +24,13 @@ jobs:
           fi
       - name: リリース物のビルド（tarball + SHA256SUMS）
         run: make release
+      - name: Homebrew formula を生成（このリリースの sha256 で）
+        run: make formula
       - name: GitHub Release へ添付
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/release/*.tar.gz
             dist/release/SHA256SUMS
+            packaging/homebrew/safersync.rb
           generate_release_notes: true

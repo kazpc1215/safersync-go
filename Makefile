@@ -10,7 +10,7 @@ TARGETS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
 # バージョンはリリースビルド時に上書きできる。
 LDFLAGS := -s -w -X github.com/kazpc1215/safersync/internal/version.Version=$(VERSION)
 
-.PHONY: build test cover vet fmt clean install release $(TARGETS)
+.PHONY: build test cover vet fmt clean install release formula $(TARGETS)
 
 build: $(TARGETS) ## 全ターゲットを dist/ へビルド
 
@@ -54,6 +54,11 @@ release: clean $(TARGETS) ## リリース用 tarball + チェックサムを dis
 	  echo "  tar: $(APP)-$(VERSION)-$$os-$$arch.tar.gz"; \
 	done
 	@cd $(DIST)/release && shasum -a 256 *.tar.gz > SHA256SUMS && echo "  done: dist/release/SHA256SUMS"
+
+formula: ## Homebrew formula を dist/release/SHA256SUMS から生成（make release の後）
+	@test -f $(DIST)/release/SHA256SUMS || { \
+	  echo "✗ $(DIST)/release/SHA256SUMS がありません。先に make release を実行してください" >&2; exit 1; }
+	@sh packaging/homebrew/update-formula.sh $(DIST)/release/SHA256SUMS $(VERSION)
 
 help:
 	@awk -F':.*##' '/^[a-zA-Z_.-]+:/ { printf "  make %-12s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
