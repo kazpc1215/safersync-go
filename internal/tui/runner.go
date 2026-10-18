@@ -94,6 +94,9 @@ func (m *model) beginTransfer() error {
 	m.startAt = time.Now()
 	m.xferFiles = m.plan.Files
 	m.xferBytes = m.plan.Bytes
+	// goroutine から model のフィールドを読むと Update とデータ競合になる。
+	// 完了判定に使う値は起動前にローカルへコピーしておく。
+	xferFiles := m.xferFiles
 
 	t := job.StartTransfer()
 	if err := t.StartError(); err != nil {
@@ -123,7 +126,7 @@ func (m *model) beginTransfer() error {
 				default:
 					core.LogMsg("COPY failed " + job.Src + " -> " + job.Dst + " (rc=" + strconv.Itoa(rc) + ") [tui]")
 				}
-				if m.xferFiles == 0 {
+				if xferFiles == 0 {
 					rc = 0 // bash 版と同じ: 差分ゼロなら転送はスキップして照合へ
 				}
 				prog.Send(transferDoneMsg{rc: rc})
