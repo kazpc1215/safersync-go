@@ -16,7 +16,7 @@ REPO="kazpc1215/safersync-go"
 APP="safersync"
 PREFIX="${PREFIX:-$HOME/.local/bin}"
 
-echo "safersync インストーラ（$REPO）"
+echo "safersync インストーラ（${REPO}）"
 
 # OS / アーキの判定（Go の GOOS/GOARCH 命名）
 os=$(uname -s); arch=$(uname -m)
