@@ -81,23 +81,33 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		return ExitError
 	}
 
-	src := core.AbsPath(opts.From)
-	dst := core.AbsPath(opts.To)
-
-	if !isDirPath(src) {
-		fmt.Fprintf(stderr, "✗ コピー元が存在しません: %s\n", src)
-		return ExitError
+	src := opts.From
+	dst := opts.To
+	if !core.IsRemote(src) {
+		src = core.AbsPath(src)
 	}
-	if fi, err := os.Stat(dst); err == nil && !fi.IsDir() {
-		fmt.Fprintf(stderr, "✗ コピー先がフォルダではありません: %s\n", dst)
-		return ExitError
+	if !core.IsRemote(dst) {
+		dst = core.AbsPath(dst)
+	}
+
+	if !core.IsRemote(src) {
+		if !isDirPath(src) {
+			fmt.Fprintf(stderr, "✗ コピー元が存在しません: %s\n", src)
+			return ExitError
+		}
+	}
+	if !core.IsRemote(dst) {
+		if fi, err := os.Stat(dst); err == nil && !fi.IsDir() {
+			fmt.Fprintf(stderr, "✗ コピー先がフォルダではありません: %s\n", dst)
+			return ExitError
+		}
 	}
 
 	fmt.Fprintf(stdout, "\n%s▶ %s → %s%s\n", c.bold, src, dst, c.reset)
 
-	// 未マウントの外付けボリュームへ書き込まない
+	// 未マウントの外付けボリュームへ書き込まない（ローカルコピー先のみ）
 	mountRoot := mountRootOf(opts)
-	if !core.DestIsMounted(dst, mountRoot) {
+	if !core.IsRemote(dst) && !core.DestIsMounted(dst, mountRoot) {
 		fmt.Fprintf(stderr, "✗ コピー先のボリュームがマウントされていません: %s\n", dst)
 		fmt.Fprintln(stderr, "✗ 外付け媒体を接続してから再実行してください。")
 		fmt.Fprintf(stderr, "✗ 現在の %s: %s\n", mountRoot, strings.Join(volumeNames(mountRoot), " "))

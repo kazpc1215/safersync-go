@@ -124,6 +124,7 @@ type model struct {
 	fileListScroll int
 	showLog        bool
 	logScroll      int
+	previewTab     int
 
 	// 描画
 	width, height int
@@ -649,6 +650,10 @@ func (m *model) updateOptions(key string) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) updatePreview(key string) (tea.Model, tea.Cmd) {
+	if key == "tab" {
+		m.previewTab = (m.previewTab + 1) % 3
+		return m, nil
+	}
 	if m.showFileList {
 		switch key {
 		case "up", "k":

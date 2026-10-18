@@ -104,6 +104,11 @@ type Plan struct {
 	Files int
 	Bytes int64
 	Lines []string // "item name" 形式（dry-run 表示用）
+
+	// 差分詳細（タブ表示用）
+	Transfer []string // 転送されるファイル（>f...）
+	Skipped  []string // スキップ/属性のみの変化（.f... / .d...）
+	Other    []string // その他の差分
 }
 
 // PlanChanges は転送対象のファイルだけを集める。
@@ -116,12 +121,21 @@ func (j *Job) PlanChanges() Plan {
 			continue
 		}
 		item, size, name, ok := parseDiffLine(line)
-		if !ok || !strings.HasPrefix(item, ">f") {
-			continue // ディレクトリ・属性のみの変化は対象外
+		if !ok {
+			continue
 		}
-		plan.Files++
-		plan.Bytes += size
-		plan.Lines = append(plan.Lines, item+" "+name)
+		entry := item + " " + name
+		switch {
+		case strings.HasPrefix(item, ">f"):
+			plan.Files++
+			plan.Bytes += size
+			plan.Lines = append(plan.Lines, entry)
+			plan.Transfer = append(plan.Transfer, entry)
+		case strings.HasPrefix(item, "."):
+			plan.Skipped = append(plan.Skipped, entry)
+		default:
+			plan.Other = append(plan.Other, entry)
+		}
 	}
 	return plan
 }

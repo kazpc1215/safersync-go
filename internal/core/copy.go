@@ -243,8 +243,8 @@ func CopyOne(j *Job) int {
 		return 1
 	}
 
-	// ボリュームの直下を指定すると中身が散らばるので、先に知らせる
-	if IsMountPoint(j.Dst) {
+	// ボリュームの直下を指定すると中身が散らばるので、先に知らせる（ローカルのみ）
+	if !IsRemote(j.Dst) && IsMountPoint(j.Dst) {
 		fmt.Fprintf(j.Err, "! コピー先がボリュームの直下です: %s\n", j.Dst)
 		fmt.Fprintf(j.Err, "! コピー元の中身がこのフォルダの直下に入ります（まとめたいときは下位フォルダを指定してください）\n")
 	}
