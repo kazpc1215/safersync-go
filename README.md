@@ -126,9 +126,8 @@ make release   # リリース物（dist/release/*.tar.gz + SHA256SUMS）
   （`lib/` と `test/`）取得し、`bin/safersync` だけ Go バイナリへ差し替えて bats を実行します
   （CI の `bats-regression` ジョブと同じ手順）。
   - 検証済み: コピー / 照合 / dry-run / 除外 / 空き容量 / 未マウント判定 / `--status` /
-    ログ配置 など **46/47 が合格**。唯一の不合格は shellcheck テスト（bash ソース専用）で、
-    bash 版のソースそのものを検査するテストなので Go 版では `go vet ./...` + `go test ./...`
-    が同等のゲート（CI では bash 版の shellcheck も回します）。
+    ログ配置 など。bash 版の bats テスト 47 件（shellcheck は bash 版 `lib/` の静的検査）が
+    Go バイナリ差し替えで**すべて合格**（CI の `bats-regression` ジョブで毎回実行）。
 - Go 側のユニットテストは [`internal/cli/cli_test.go`](internal/cli/cli_test.go)、
   [`internal/core/core_test.go`](internal/core/core_test.go)、
   [`internal/tui/tui_test.go`](internal/tui/tui_test.go)。
@@ -151,5 +150,5 @@ install.sh               リリース単一バイナリのインストーラ（c
 
 - bash 版リポジトリ（kazpc1215/safersync）は機能追加を停止し、この Go 版へ統合しました
 - コマンド体系・出力・終了コードは bash 版と同一のため、既存のスクリプトや bats テストは
-  書き換えずにそのまま使えます（46/47 合格の回帰テストがこの互換性の証拠です）
+  書き換えずにそのまま使えます（47 件すべてが合格する回帰テストがこの互換性の証拠です）
 - bash 版を引き続き使いたい場合は `~/safersync/bin/safersync` を直接実行するか、シンボリックリンクで使えます
