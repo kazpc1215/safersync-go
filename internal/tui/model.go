@@ -86,6 +86,9 @@ type model struct {
 	browseFilter                     string
 	showHidden                       bool
 
+	// 除外パターン（CLI --exclude 相当）
+	extraExcludes []string
+
 	// プレビュー・転送の結果
 	free    int64
 	plan    core.Plan
@@ -114,9 +117,11 @@ type model struct {
 	startAt  time.Time
 
 	// UI
-	spinner       int
-	confirmCancel bool
-	showHelp      bool
+	spinner        int
+	confirmCancel  bool
+	showHelp       bool
+	showFileList   bool
+	fileListScroll int
 
 	// 描画
 	width, height int
@@ -179,6 +184,7 @@ func (m model) excludes() []string {
 	if m.optTMP {
 		out = append(out, "*.tmp", "*.temp")
 	}
+	out = append(out, m.extraExcludes...)
 	return out
 }
 
@@ -303,6 +309,12 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 	case "?":
 		m.showHelp = !m.showHelp
 		return m, nil
+	case "l", "L":
+		if m.stage == stPreview {
+			m.showFileList = !m.showFileList
+			m.fileListScroll = 0
+			return m, nil
+		}
 	case "q", "Q":
 		// bash 版と同じ: ソース系・プレビューでは中止、他は Esc と同じ「戻る」
 		if m.prompting || m.stage == stTransfer || m.stage == stVerifyBusy || m.stage == stPlanBusy {
@@ -482,6 +494,7 @@ const (
 	pkNew promptKind = iota
 	pkManual
 	pkFilter
+	pkExclude
 )
 
 func (m *model) updatePrompt(key string) (tea.Model, tea.Cmd) {
@@ -508,6 +521,13 @@ func (m *model) updatePrompt(key string) (tea.Model, tea.Cmd) {
 		}
 		if m.promptKind == pkFilter {
 			m.browseFilter = input
+			m.sel = 0
+			return m, nil
+		}
+		if m.promptKind == pkExclude {
+			if input != "" {
+				m.extraExcludes = append(m.extraExcludes, input)
+			}
 			m.sel = 0
 			return m, nil
 		}
@@ -543,7 +563,7 @@ func (m *model) updatePrompt(key string) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) updateOptions(key string) (tea.Model, tea.Cmd) {
-	n := 5
+	n := 6
 	switch key {
 	case "up", "k":
 		m.sel = mod(m.sel-1, n)
@@ -563,8 +583,20 @@ func (m *model) updateOptions(key string) (tea.Model, tea.Cmd) {
 			if m.caffeineAvail {
 				m.optCaffeinate = !m.optCaffeinate
 			}
+		case 5:
+			m.prompting = true
+			m.prompt = ""
+			m.promptLbl = "追加で除外するパターンを入力（例: *.tmp）。空でキャンセル"
+			m.promptKind = pkExclude
 		}
 	case "enter":
+		if m.sel == 5 {
+			m.prompting = true
+			m.prompt = ""
+			m.promptLbl = "追加で除外するパターンを入力（例: *.tmp）。空でキャンセル"
+			m.promptKind = pkExclude
+			return m, nil
+		}
 		m.stage = stPlanBusy
 		return m, startPlanCmd(m)
 	}
@@ -572,6 +604,21 @@ func (m *model) updateOptions(key string) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) updatePreview(key string) (tea.Model, tea.Cmd) {
+	if m.showFileList {
+		switch key {
+		case "up", "k":
+			if m.fileListScroll > 0 {
+				m.fileListScroll--
+			}
+		case "down", "j":
+			if m.fileListScroll < len(m.plan.Lines)-1 {
+				m.fileListScroll++
+			}
+		case "l", "L", "esc":
+			m.showFileList = false
+		}
+		return m, nil
+	}
 	n := len(m.items)
 	switch key {
 	case "up", "k", "left":

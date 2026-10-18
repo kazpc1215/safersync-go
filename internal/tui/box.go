@@ -4,10 +4,22 @@
 package tui
 
 import (
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
+
+func init() {
+	if os.Getenv("NO_COLOR") != "" {
+		stTitle = lipgloss.NewStyle()
+		stCursor = lipgloss.NewStyle()
+		stOk = lipgloss.NewStyle()
+		stWarn = lipgloss.NewStyle()
+		stErr = lipgloss.NewStyle()
+		stDim = lipgloss.NewStyle()
+	}
+}
 
 // ---------------------------------------------------------------------------
 // 罫線フレーム（bash 版 tui_frame と同じ構成）
