@@ -895,7 +895,7 @@ func TestUpdateOptions_branches(t *testing.T) {
 		mm := tbase()
 		mm.stage = stOptions
 		mm.sel = sel
-		mm = stepKey(mm, space())
+		stepKey(mm, space())
 	}
 	// space on sel=4 with caffeineAvail=false は何もしない
 	mm := tbase()
