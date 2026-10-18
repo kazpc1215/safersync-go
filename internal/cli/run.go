@@ -123,6 +123,21 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 				continue
 			}
 		}
+		// コピー先がコピー元の内側だと、実行のたびにコピーが入れ子になって増え続ける。
+		// 開始前に止める（リモート同士はパスの親子関係を判定できないので対象外）。
+		if !core.IsRemote(src) && !core.IsRemote(dst) {
+			if src == dst {
+				fmt.Fprintf(stderr, "✗ コピー元とコピー先が同じです: %s\n", src)
+				lastRC = ExitError
+				continue
+			}
+			if core.IsInside(src, dst) {
+				fmt.Fprintf(stderr, "✗ コピー先がコピー元の中にあります: %s\n", dst)
+				fmt.Fprintln(stderr, "✗ コピー先には、コピー元の外（別フォルダや別ボリューム）を指定してください。")
+				lastRC = ExitError
+				continue
+			}
+		}
 
 		fmt.Fprintf(stdout, "\n%s▶ %s → %s%s\n", c.bold, src, dst, c.reset)
 

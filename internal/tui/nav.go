@@ -62,6 +62,10 @@ func (m *model) checkDst(p string) string {
 	if p == m.src {
 		return "コピー元とコピー先が同じです"
 	}
+	// コピー先がコピー元の中だと、実行のたびに入れ子になって増え続ける
+	if core.IsInside(m.src, p) {
+		return "コピー元の中にはコピーできません: " + p
+	}
 	if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
 		return "コピー先がフォルダではありません: " + p
 	}

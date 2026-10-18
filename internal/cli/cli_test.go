@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -107,20 +106,25 @@ func TestParse_missingFrom(t *testing.T) {
 	if opts.From != "" {
 		t.Fatalf("From が空のはず")
 	}
-	if err := validateFromTo(opts); err == nil || err.Error() != "コピー元を指定してください（例: safersync ~/書類 /Volumes/HDD/書類）" {
-		t.Errorf("want コピー元エラー, got %v", err)
-	}
 }
 
-// validateFromTo は run.go で使う引用チェックのテスト用に再現する
-func validateFromTo(opts *core.Options) error {
-	if opts.From == "" {
-		return errors.New("コピー元を指定してください（例: safersync ~/書類 /Volumes/HDD/書類）")
+// コピー元・コピー先が欠けているときは、本番の Run が案内を出して終了コード 1 で
+// 止まること（テスト専用の再実装ではなく実装そのものを検証する）。
+func TestRun_missingFromTo(t *testing.T) {
+	if !core.RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
 	}
-	if opts.To == "" {
-		return errors.New("コピー先を指定してください（例: safersync ~/書類 /Volumes/HDD/書類）")
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"--to", "/dst"}, &out, &errOut); code != ExitError {
+		t.Fatalf("want exit %d, got %d (stderr=%q)", ExitError, code, errOut.String())
 	}
-	return nil
+	if !strings.Contains(errOut.String(), "コピー元とコピー先を指定してください") {
+		t.Errorf("案内メッセージが出ていない: %q", errOut.String())
+	}
+	if strings.Contains(out.String(), "▶") {
+		t.Errorf("引数不足なのに処理を始めている: %q", out.String())
+	}
 }
 
 func TestParse_duplicateFrom(t *testing.T) {
@@ -188,13 +192,53 @@ func TestRun_version(t *testing.T) {
 	}
 }
 
-func TestRun_unimplementedCopy(t *testing.T) {
-	var out, errOut bytes.Buffer
-	if code := Run([]string{"/src", "/dst"}, &out, &errOut); code != ExitError {
-		t.Errorf("want exit 1, got %d", code)
+// コピー元フォルダが存在しないときは、コピーを始めずに終了コード 1 で止まること。
+func TestRun_missingSourceDir(t *testing.T) {
+	if !core.RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
 	}
-	if got := errOut.String(); got == "" {
-		t.Error("未実装メッセージが出ていない")
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"/nonexistent-src", "/dst"}, &out, &errOut); code != ExitError {
+		t.Errorf("want exit %d, got %d (stderr=%q)", ExitError, code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "コピー元が存在しません") {
+		t.Errorf("コピー元が無い旨のメッセージが出ていない: %q", errOut.String())
+	}
+}
+
+// コピー先がコピー元の中にあるときは、入れ子コピーを始めずに止まること。
+func TestRun_destInsideSource(t *testing.T) {
+	if !core.RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	src := t.TempDir()
+	dst := filepath.Join(src, "backup")
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{src, dst}, &out, &errOut); code != ExitError {
+		t.Fatalf("want exit %d, got %d (stderr=%q)", ExitError, code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "コピー先がコピー元の中にあります") {
+		t.Errorf("案内メッセージが出ていない: %q", errOut.String())
+	}
+	if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		t.Errorf("指定が拒否されたのにコピー先が作られている: %v", err)
+	}
+}
+
+// コピー元とコピー先が同じときも止まること。
+func TestRun_sameSourceAndDest(t *testing.T) {
+	if !core.RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	src := t.TempDir()
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{src, src}, &out, &errOut); code != ExitError {
+		t.Fatalf("want exit %d, got %d (stderr=%q)", ExitError, code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "コピー元とコピー先が同じです") {
+		t.Errorf("案内メッセージが出ていない: %q", errOut.String())
 	}
 }
 

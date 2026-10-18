@@ -279,3 +279,19 @@ func TestHistoryPathXDG(t *testing.T) {
 		t.Errorf("既定は ~/.local/state のはず: %q", got)
 	}
 }
+
+// コピー先がコピー元の内側なら決定時にエラーを返す（入れ子コピー防止）。
+func TestCheckDst_insideSource(t *testing.T) {
+	src := t.TempDir()
+	m := newModel("/Volumes", src, "")
+
+	if got := m.checkDst(src); got != "コピー元とコピー先が同じです" {
+		t.Errorf("同一パスの検査: %q", got)
+	}
+	if got := m.checkDst(filepath.Join(src, "backup")); !strings.Contains(got, "コピー元の中") {
+		t.Errorf("内側の検査: %q", got)
+	}
+	if got := m.checkDst(t.TempDir()); got != "" {
+		t.Errorf("正常なコピー先を拒否した: %q", got)
+	}
+}
