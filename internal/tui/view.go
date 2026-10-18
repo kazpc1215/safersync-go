@@ -48,13 +48,17 @@ func (m model) View() string {
 		}
 	case stSourceDir, stDestDir:
 		if m.prompting {
-			return frame(w, title, "",
-				[]string{
-					"",
-					"  " + m.promptLbl,
-					"",
-					"  > " + m.prompt + "_",
-				}, " [Enter] 決定   [Esc] キャンセル")
+			body := []string{
+				"",
+				"  現在のフォルダ: " + m.browseDir,
+			}
+			parts := strings.Split(strings.Trim(m.browseDir, "/"), "/")
+			if m.browseDir == "/" {
+				parts = []string{"/"}
+			}
+			body = append(body, "  パンくず: / "+strings.Join(parts, " / "))
+			body = append(body, "", "  "+m.promptLbl, "", "  > "+m.prompt+"_")
+			return frame(w, title, "", body, " [Enter] 決定   [Esc] キャンセル")
 		}
 		body = append(body, " 現在のフォルダ: "+m.browseDir)
 		// パンくず表示
