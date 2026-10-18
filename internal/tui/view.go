@@ -151,7 +151,7 @@ func (m model) View() string {
 		}
 		footer = "[↑/↓] 移動   [Enter] 選択   [n] 新規フォルダ   [p] パス入力   [/] 検索   [h] 隠し   [Esc] 戻る"
 	case stOptions:
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 6; i++ {
 			body = append(body, " "+cursor(i == m.sel)+" "+m.optionLine(i))
 		}
 	case stPlanBusy:
