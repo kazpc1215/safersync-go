@@ -11,25 +11,25 @@
 class Safersync < Formula
   desc "rsync の安全なラッパー（コピー → 照合）。進捗・残り時間表示付き"
   homepage "https://github.com/kazpc1215/safersync-go"
-  version "1.2.2"
+  version "1.3.0"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/kazpc1215/safersync-go/releases/download/v#{version}/safersync-#{version}-darwin-arm64.tar.gz"
-      sha256 "b2d0c8edb9b47e2d8b14235046425403b0daf1048357b09e2c6404dbd7a43e38"
+      sha256 "fd6fdd48b84c73b006f218ee29c8ee43e6134f70249b99226d712fb1d01aaead"
     else
       url "https://github.com/kazpc1215/safersync-go/releases/download/v#{version}/safersync-#{version}-darwin-amd64.tar.gz"
-      sha256 "21a4f8d76d480c6ba0baa9db13dc16f6e69b5cf0ba684720ca42dcda488e78d1"
+      sha256 "c6b96511a31aaf3d5def6f6fabb372a8a13e101d0cee5b0b8cb80bb505e7ed69"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
       url "https://github.com/kazpc1215/safersync-go/releases/download/v#{version}/safersync-#{version}-linux-arm64.tar.gz"
-      sha256 "6c5ba2ed377026265aed7be7a06c34eeccae7506cbcff620587318e4b8431411"
+      sha256 "3edc00e4435a92313f636aa5f684d3bcbb203d61f498e8aedeb3a85ed0bc4810"
     else
       url "https://github.com/kazpc1215/safersync-go/releases/download/v#{version}/safersync-#{version}-linux-amd64.tar.gz"
-      sha256 "acdfa2f114ce71b3a7ef7f0273ca5f9ba6d4fe566d36e2d99231d0652975f61e"
+      sha256 "a5334e17404547751aecdbae427184dcc1fa8f5861c12c1aef9c2bc3fa42c61a"
     end
   end
 
