@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -235,5 +237,101 @@ func TestRun_rsyncMissing(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "すべて最新") {
 		t.Errorf("差分を確認できていないのに成功と誤報告している: %q", out.String())
+	}
+}
+
+// フラグの一括マッピング（長短・= 形式・--exclude の複数指定）
+func TestParse_allFlags(t *testing.T) {
+	opts, err := Parse([]string{
+		"--tui", "--dry-run", "--checksum", "--fat", "--ignore-space-check",
+		"-v", "--no-caffeinate", "--no-verify",
+		"--exclude", "*.tmp", "--exclude=secret", "-x", "raw",
+		"--mount-root=/mnt/vols",
+		"--from", "/src", "--to=/dst",
+	})
+	if err != nil {
+		t.Fatalf("エラー: %v", err)
+	}
+	if !opts.TUI || !opts.DryRun || !opts.Checksum || !opts.FAT || opts.APFS ||
+		!opts.IgnoreSpaceCheck || !opts.Stats || !opts.NoCaffeinate || !opts.NoVerify {
+		t.Errorf("フラグが Options に反映されていない: %+v", opts)
+	}
+	if strings.Join(opts.Excludes, ",") != "*.tmp,secret,raw" {
+		t.Errorf("Excludes = %v", opts.Excludes)
+	}
+	if opts.MountRoot != "/mnt/vols" || opts.From != "/src" || opts.To != "/dst" {
+		t.Errorf("MountRoot/From/To = %q / %q / %q", opts.MountRoot, opts.From, opts.To)
+	}
+}
+
+// --fat と --apfs は後勝ち
+func TestParse_fatAPFSLastWins(t *testing.T) {
+	opts, err := Parse([]string{"--fat", "--apfs", "/a", "/b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.FAT || !opts.APFS {
+		t.Errorf("--apfs が最後: FAT=%v APFS=%v", opts.FAT, opts.APFS)
+	}
+	opts, err = Parse([]string{"--apfs", "--fat", "/a", "/b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.FAT || opts.APFS {
+		t.Errorf("--fat が最後: FAT=%v APFS=%v", opts.FAT, opts.APFS)
+	}
+}
+
+func TestParse_helpStatusTUI(t *testing.T) {
+	if opts, err := Parse([]string{"--help"}); err != nil || !opts.ShowHelp {
+		t.Errorf("--help: err=%v opts=%+v", err, opts)
+	}
+	if opts, err := Parse([]string{"--status"}); err != nil || !opts.ShowStatus {
+		t.Errorf("--status: err=%v opts=%+v", err, opts)
+	}
+	if opts, err := Parse([]string{"-i"}); err != nil || !opts.TUI {
+		t.Errorf("-i: err=%v opts=%+v", err, opts)
+	}
+}
+
+// mountRootOf: 引数 > 環境変数 > プラットフォーム既定 の優先順
+func TestMountRootOf(t *testing.T) {
+	opts := &core.Options{}
+	t.Setenv("SAFERSYNC_MOUNT_ROOT", "")
+	want := "/Volumes"
+	if runtime.GOOS != "darwin" {
+		want = "/"
+	}
+	if got := mountRootOf(opts); got != want {
+		t.Errorf("既定 = %q, want %q", got, want)
+	}
+	t.Setenv("SAFERSYNC_MOUNT_ROOT", "/mnt/vols/")
+	if got := mountRootOf(opts); got != "/mnt/vols" {
+		t.Errorf("環境変数 = %q, want /mnt/vols（末尾スラッシュは落とす）", got)
+	}
+	opts.MountRoot = "/custom/dir/"
+	if got := mountRootOf(opts); got != "/custom/dir" {
+		t.Errorf("引数優先 = %q, want /custom/dir", got)
+	}
+}
+
+// doStatus は基点直下のフォルダを一覧表示する
+func TestDoStatus(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"diskA", "diskB"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var buf bytes.Buffer
+	rc := doStatus(&core.Options{MountRoot: root}, colors{}, &buf)
+	if rc != ExitOK {
+		t.Fatalf("rc = %d, want %d", rc, ExitOK)
+	}
+	out := buf.String()
+	for _, want := range []string{"マウントされているボリューム", root, "diskA", "diskB"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("出力に %q がない:\n%s", want, out)
+		}
 	}
 }

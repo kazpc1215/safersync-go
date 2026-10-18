@@ -32,7 +32,8 @@ func IsMountPoint(path string) bool {
 	return strings.Contains(string(out), " on "+path+" ")
 }
 
-// Dirname は親ディレクトリへ1段上がる（"x" は "." ではなく親を返す点に注意）。
+// Dirname は親ディレクトリへ1段上がる（bash 版 dirname と同じく、区切りの
+// ない相対パス "x" は "." になる）。
 func Dirname(p string) string {
 	if p == "/" {
 		return "/"
@@ -43,6 +44,7 @@ func Dirname(p string) string {
 // MountPointOf はパス（存在しなければ最も近い既存の祖先）から上へたどり、
 // 最初に見つかる実マウントポイントを返す。見つからなければ "/"。
 func MountPointOf(p string) string {
+	p = AbsPath(p) // 相対パスはカレント基準にそろえる（"." のまま上れなくなるのを防ぐ）
 	for !exists(p) && p != "/" {
 		p = Dirname(p)
 	}
