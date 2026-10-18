@@ -3,11 +3,35 @@ package cli
 import (
 	"bytes"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/kazpc1215/safersync/internal/core"
 )
+
+func TestIsTTY_devNullIsNotTTY(t *testing.T) {
+	// /dev/null はキャラクタデバイスだが端末ではない。
+	// 以前はここを端末と誤認し、「TUI は対話端末でのみ」チェックをすり抜けていた。
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if isTTY(f) {
+		t.Error("/dev/null を端末と誤認している")
+	}
+
+	// 通常のファイルも端末ではない
+	tmp, err := os.CreateTemp(t.TempDir(), "f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tmp.Close()
+	if isTTY(tmp) {
+		t.Error("通常ファイルを端末と誤認している")
+	}
+}
 
 func TestParse_versionFlag(t *testing.T) {
 	opts, err := Parse([]string{"--version"})

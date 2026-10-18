@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/charmbracelet/x/term"
+
 	"github.com/kazpc1215/safersync/internal/core"
 	"github.com/kazpc1215/safersync/internal/tui"
 	"github.com/kazpc1215/safersync/internal/version"
@@ -24,12 +26,11 @@ func newColors(stdout bool) colors {
 		yellow: "\x1b[33m", blue: "\x1b[34m", reset: "\x1b[0m"}
 }
 
+// isTTY は f が端末かどうかを返す。
+// キャラクタデバイス判定だけだと /dev/null も端末と誤認し、
+// 「TUI は対話端末でのみ」チェックをすり抜けてしまうため、端末の ioctl で判定する。
 func isTTY(f *os.File) bool {
-	fi, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(f.Fd())
 }
 
 // Run は safersync の本体。bash 版 main() と同じ流れ・出力・終了コード。
