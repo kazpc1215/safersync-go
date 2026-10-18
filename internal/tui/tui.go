@@ -82,6 +82,10 @@ func RunTui(mountRoot, from, to string) int {
 	// 終了理由（正常終了 / 中断 / シグナル / エラー）にかかわらず、
 	// 実行中の rsync を確実に止めてから終了する。
 	fm.terminateChild()
+	if fm.transfer != nil {
+		// rsync 出力の一時ファイルを片付ける（/tmp に溜めない）
+		fm.transfer.Cleanup()
+	}
 	saveHistory(fm.src, fm.dst)
 
 	switch {

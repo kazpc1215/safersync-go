@@ -55,6 +55,12 @@ func (j *Job) StartTransfer() *Transfer {
 	}
 	if err := cmd.Start(); err != nil {
 		t.startErr = err
+		// Wait を呼ぶ相手がいないため、ここで一時ファイルを片付ける
+		if f != nil {
+			f.Close()
+			os.Remove(f.Name())
+			t.log, t.logFile = nil, ""
+		}
 		return t
 	}
 	t.cmd = cmd
@@ -98,6 +104,15 @@ func (t *Transfer) Wait() int {
 
 // LogFile は rsync 出力の一時ファイルパスを返す。
 func (t *Transfer) LogFile() string { return t.logFile }
+
+// Cleanup は rsync 出力の一時ファイルを削除する。開いたままでも削除でき
+// （close された時点で消える）、TUI の終了時や転送の再試行時に呼ぶ。
+// 二重に呼んでも実害はない。
+func (t *Transfer) Cleanup() {
+	if t.logFile != "" {
+		os.Remove(t.logFile)
+	}
+}
 
 // CurrentFile は rsync の出力から最後に処理したファイル名を返す（無ければ空）。
 func (t *Transfer) CurrentFile() string {

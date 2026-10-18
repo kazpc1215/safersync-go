@@ -90,8 +90,13 @@ func (m *model) beginTransfer() error {
 	m.xferBytes = m.plan.Bytes
 
 	t := job.StartTransfer()
-	if t.StartError() != nil {
-		return t.StartError()
+	if err := t.StartError(); err != nil {
+		t.Cleanup()
+		return err
+	}
+	// 再試行などで前の転送が残っている場合は、その一時ファイルを片付ける
+	if m.transfer != nil {
+		m.transfer.Cleanup()
 	}
 	m.transfer = t
 
