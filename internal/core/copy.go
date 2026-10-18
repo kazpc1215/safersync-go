@@ -135,7 +135,7 @@ func runWithProgress(cmd *exec.Cmd, j *Job) int {
 	defer signal.Stop(sigCh)
 	interrupted := false
 
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(progressInterval)
 	defer ticker.Stop()
 
 	var rc int
@@ -158,28 +158,8 @@ loop:
 			if interrupted {
 				continue
 			}
-			elapsed := int64(time.Since(start).Seconds())
-			if elapsed < 1 {
-				elapsed = 1
-			}
-			doneBytes := ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
-			gained := doneBytes - base
-			if gained < 0 {
-				gained = 0
-			}
-			speed := gained / elapsed
-			pct := 100
-			if total > 0 {
-				pct = int(doneBytes * 100 / total)
-				if pct > 100 {
-					pct = 100
-				}
-			}
-			eta := int64(-1)
-			if speed > 0 && total > doneBytes {
-				eta = (total - doneBytes) / speed
-			}
-			fmt.Fprintf(j.Out, "\r\033[K  %s", DrawProgress(pct, doneBytes, total, speed, eta))
+			p, doneBytes, speed, eta := scanProgress(j, total, base, start, time.Now())
+			fmt.Fprintf(j.Out, "\r\033[K  %s", DrawProgress(p, doneBytes, total, speed, eta))
 		}
 	}
 
@@ -210,6 +190,48 @@ func exitCodeOf(err error) int {
 // ---------------------------------------------------------------------------
 // コピー本体（bash 版 copy_one。「--delete は使わない。既存のファイルは消さない」）
 // ---------------------------------------------------------------------------
+
+// rsyncArgs はコピー実行用の rsync 引数を組み立てる（--human-readable --partial まで）。
+func (j *Job) rsyncArgs() []string {
+	args := append([]string{}, j.rsyncMetaOpts()...)
+	args = append(args, "--human-readable", "--partial")
+	args = append(args, j.excludeArgs()...)
+	args = append(args, j.Src+"/", j.Dst+"/")
+	if j.Verbose {
+		args = append(args, "--stats")
+	} else {
+		args = append(args, "-q")
+	}
+	return args
+}
+
+const progressInterval = 2 * time.Second
+
+// scanProgress は転送先の累計バイト数から進捗を計算する（bash 版 run_with_progress / TUI 版共通）。
+func scanProgress(watched *Job, total, base int64, start time.Time, now time.Time) (p int, done, speed, eta int64) {
+	elapsed := int64(now.Sub(start).Seconds())
+	if elapsed < 1 {
+		elapsed = 1
+	}
+	doneBytes := ScanDir(watched.Dst, watched.AllExcludePatterns()).Bytes
+	gained := doneBytes - base
+	if gained < 0 {
+		gained = 0
+	}
+	speed = gained / elapsed
+	p = 100
+	if total > 0 {
+		p = int(doneBytes * 100 / total)
+		if p > 100 {
+			p = 100
+		}
+	}
+	eta = -1
+	if speed > 0 && total > doneBytes {
+		eta = (total - doneBytes) / speed
+	}
+	return p, doneBytes, speed, eta
+}
 
 // CopyOne は1組のコピーを実行する。戻り値は終了コード（0 / 1 / 3 / 130）。
 func CopyOne(j *Job) int {
@@ -272,16 +294,7 @@ func CopyOne(j *Job) int {
 	fmt.Fprintf(j.Out, "    コピーするファイル: %d 件（%s）\n", plan.Files, FmtBytes(plan.Bytes))
 	j.log(fmt.Sprintf("COPY start  %s -> %s (%d files)", j.Src, j.Dst, plan.Files))
 
-	args := append([]string{}, j.rsyncMetaOpts()...)
-	args = append(args, "--human-readable", "--partial")
-	args = append(args, j.excludeArgs()...)
-	args = append(args, j.Src+"/", j.Dst+"/")
-	if j.Verbose {
-		args = append(args, "--stats")
-	} else {
-		args = append(args, "-q")
-	}
-	cmd := newRsyncCmd(j, args)
+	cmd := newRsyncCmd(j, j.rsyncArgs())
 
 	copyStart := time.Now()
 	var rc int

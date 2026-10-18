@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kazpc1215/safersync/internal/core"
+	"github.com/kazpc1215/safersync/internal/tui"
 	"github.com/kazpc1215/safersync/internal/version"
 )
 
@@ -66,8 +67,8 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "✗ TUI は対話端末でのみ起動できます（--help を参照）")
 			return ExitError
 		}
-		// ステップ 3（Bubble Tea）で実装する
-		return notImplemented(stderr, "対話ウィザード（TUI）")
+		// 対話ウィザード（Bubble Tea）。戻り値は CLI と同じ終了コード体系
+		return tui.RunTui(mountRootOf(opts), opts.From, opts.To)
 	}
 
 	// --- コピー元とコピー先 ---
