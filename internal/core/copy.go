@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -155,6 +156,12 @@ func runWithProgress(cmd *exec.Cmd, j *Job) int {
 	base := ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
 	start := time.Now()
 
+	// 走査は別 goroutine で行い、シグナル受付・描画をブロックしない（大きなツリー対策）。
+	// 直前の走査結果がまだ無ければ base を使う。
+	var scanMu sync.Mutex
+	lastDstBytes := base
+	scanning := false
+
 	// rsync の統計出力は一時ファイルへ退避し、進捗行と混ざらないようにする
 	tmp, err := os.CreateTemp("", "safersync-*")
 	if err != nil {
@@ -197,7 +204,29 @@ loop:
 			if interrupted {
 				continue
 			}
-			p, doneBytes, speed, eta := scanProgress(j, total, base, start, time.Now())
+			// 非同期走査: 実行中なら前回値を使い、UI/シグナル処理を止めない
+			scanMu.Lock()
+			busy := scanning
+			if !busy {
+				scanning = true
+				scanMu.Unlock()
+				go func() {
+					b := ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
+					scanMu.Lock()
+					lastDstBytes = b
+					scanning = false
+					scanMu.Unlock()
+				}()
+			} else {
+				scanMu.Unlock()
+			}
+			scanMu.Lock()
+			db := lastDstBytes
+			scanMu.Unlock()
+			if db == 0 {
+				db = base
+			}
+			p, doneBytes, speed, eta := progressFrom(db, total, base, start, time.Now())
 			fmt.Fprintf(j.Out, "\r\033[K  %s", DrawProgress(p, doneBytes, total, speed, eta))
 		}
 	}
@@ -254,12 +283,13 @@ func (j *Job) rsyncArgs() []string {
 const progressInterval = 2 * time.Second
 
 // scanProgress は転送先の累計バイト数から進捗を計算する（bash 版 run_with_progress / TUI 版共通）。
-func scanProgress(watched *Job, total, base int64, start time.Time, now time.Time) (p int, done, speed, eta int64) {
+// progressFrom は走査済みの dst バイト数から進捗を計算する（走査そのものは含まない）。
+// 非同期走査（runWithProgress / Transfer.Frame）から使う。
+func progressFrom(doneBytes, total, base int64, start time.Time, now time.Time) (p int, done, speed, eta int64) {
 	elapsed := int64(now.Sub(start).Seconds())
 	if elapsed < 1 {
 		elapsed = 1
 	}
-	doneBytes := ScanDir(watched.Dst, watched.AllExcludePatterns()).Bytes
 	gained := doneBytes - base
 	if gained < 0 {
 		gained = 0
@@ -277,6 +307,12 @@ func scanProgress(watched *Job, total, base int64, start time.Time, now time.Tim
 		eta = (total - doneBytes) / speed
 	}
 	return p, doneBytes, speed, eta
+}
+
+// scanProgress は転送先を走査して進捗を計算する（bash 版 run_with_progress / TUI 版共通）。
+func scanProgress(watched *Job, total, base int64, start time.Time, now time.Time) (p int, done, speed, eta int64) {
+	doneBytes := ScanDir(watched.Dst, watched.AllExcludePatterns()).Bytes
+	return progressFrom(doneBytes, total, base, start, now)
 }
 
 // CopyOne は1組のコピーを実行する。戻り値は終了コード（0 / 1 / 3 / 130）。

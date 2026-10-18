@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -26,6 +27,11 @@ type Transfer struct {
 	cmd      *exec.Cmd
 	startErr error
 
+	// 非同期 dst 走査のキャッシュ（進捗をブロックしない）
+	scanMu       sync.Mutex
+	lastDstBytes int64
+	scanning     bool
+
 	logFile string
 	log     *os.File
 }
@@ -37,6 +43,7 @@ func (j *Job) StartTransfer() *Transfer {
 	t := &Transfer{Job: j, start: time.Now()}
 	t.Total = j.SrcScan().Bytes
 	t.Base = ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
+	t.lastDstBytes = t.Base
 	// 転送中ファイル名を拾うために rsync の出力を一時ファイルへ退避する
 	f, _ := os.CreateTemp("", "safersync-tui-*")
 	if f != nil {
@@ -70,8 +77,30 @@ func (t *Transfer) StartError() error { return t.startErr }
 
 // Frame は現時点の進捗（bash 版 TUI と同じ: 1 秒間隔で呼ぶ想定）。
 func (t *Transfer) Frame() (pct int, done, total, speed, eta int64) {
-	p, done, speed, eta := scanProgress(t.Job, t.Total, t.Base, t.start, time.Now())
-	return p, done, t.Total, speed, eta
+	// 非同期走査: 実行中なら前回値を使い、呼び出し側（UI/TUI）をブロックしない。
+	t.scanMu.Lock()
+	busy := t.scanning
+	if !busy {
+		t.scanning = true
+		t.scanMu.Unlock()
+		go func() {
+			b := ScanDir(t.Job.Dst, t.Job.AllExcludePatterns()).Bytes
+			t.scanMu.Lock()
+			t.lastDstBytes = b
+			t.scanning = false
+			t.scanMu.Unlock()
+		}()
+	} else {
+		t.scanMu.Unlock()
+	}
+	t.scanMu.Lock()
+	db := t.lastDstBytes
+	t.scanMu.Unlock()
+	if db == 0 {
+		db = t.Base
+	}
+	pct, done, speed, eta = progressFrom(db, t.Total, t.Base, t.start, time.Now())
+	return pct, done, t.Total, speed, eta
 }
 
 // Wait は rsync の終了を待つ。戻り値は終了コード（0 / rsync の rc / 1）。

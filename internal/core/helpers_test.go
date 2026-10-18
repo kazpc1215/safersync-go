@@ -526,3 +526,21 @@ func TestCopyOneWithProgress(t *testing.T) {
 		t.Errorf("コピーされていない: %v", err)
 	}
 }
+
+// progressFrom は走査済みバイト数から進捗を計算する純粋関数（非同期走査の基盤）。
+func TestProgressFrom(t *testing.T) {
+	start := time.Unix(1000, 0)
+	now := time.Unix(1010, 0) // 10 秒
+	p, done, speed, eta := progressFrom(100, 200, 50, start, now)
+	if p != 50 || done != 100 || speed != 5 || eta != 20 {
+		t.Errorf("progressFrom = (%d, %d, %d, %d), want (50, 100, 5, 20)", p, done, speed, eta)
+	}
+	// total=0 は 100%・残りなし
+	if p, _, _, eta := progressFrom(0, 0, 0, start, now); p != 100 || eta != -1 {
+		t.Errorf("total=0: p=%d eta=%d, want 100, -1", p, eta)
+	}
+	// 減少時も速度を負にしない
+	if _, _, speed, eta := progressFrom(100, 200, 500, start, now); speed != 0 || eta != -1 {
+		t.Errorf("減少時: speed=%d eta=%d, want 0, -1", speed, eta)
+	}
+}
