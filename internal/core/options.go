@@ -2,6 +2,12 @@
 // rsync 呼び出し、照合）を格納する。bash 版の lib/core に対応する。
 package core
 
+// JobSpec は複数ジョブ実行（--job）用の 1 組。
+type JobSpec struct {
+	From string
+	To   string
+}
+
 // Options はコマンドライン引数の解析結果。
 // bash 版 bin/safersync のオプション一覧と同じ項目を持つ。
 type Options struct {
@@ -16,6 +22,9 @@ type Options struct {
 	// コピー元・コピー先（位置引数 / --from / --to のどちらでも指定可）
 	From string
 	To   string
+
+	// 複数ジョブ（--job SRC DST を繰り返し指定）
+	Jobs []JobSpec
 
 	// オプション
 	MountRoot        string   // 外付けボリュームの基点（既定 /Volumes、--mount-root・環境変数で上書き）
