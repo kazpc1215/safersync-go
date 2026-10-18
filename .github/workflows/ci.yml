@@ -38,6 +38,10 @@ jobs:
   # （bin/safersync を Go バイナリへ差し替える方式。ローカル検証と同じ手順）
   bats-regression:
     runs-on: macos-latest
+    # 日本語のテスト名を正しく slug 化するため UTF-8 ロケールを明示
+    env:
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
