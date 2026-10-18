@@ -3,11 +3,16 @@ package tui
 // tui.go - エントリポイント（bash 版 bin/safersync の tui_source_all + tui_main 相当）
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strconv"
+	"sync/atomic"
+	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -38,6 +43,15 @@ func (m *model) finalRCWithInterrupt() int {
 	return m.finalRC
 }
 
+// terminateChild は実行中の rsync を止めて終了を待つ（TUI 終了時の保険）。
+// 子プロセスは別プロセスグループで動くため、これをしないと rsync が孤児として
+// コピーを続けてしまう。
+func (m *model) terminateChild() {
+	if m.transfer != nil {
+		m.transfer.Terminate(2 * time.Second)
+	}
+}
+
 // RunTui は対話ウィザードを実行し、終了コードを返す。// 呼び出し側（cli）は対話端末かどうかを確認してから呼ぶ。
 func RunTui(mountRoot, from, to string) int {
 	// 引数が無ければ、前回の TUI で使ったパスをプリフィルする（利便性向上）
@@ -58,15 +72,51 @@ func RunTui(mountRoot, from, to string) int {
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	m.prog = p
 
+	// 外部シグナルでも転送中の rsync を孤児にしない。
+	//   SIGINT / SIGTERM は Bubble Tea も処理するが、SIGHUP（ターミナル終了）は
+	//   誰も捕まえないため、ここで受け取って安全に中断する。
+	sigCh := make(chan os.Signal, 2)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	defer signal.Stop(sigCh)
+	var signaled atomic.Bool
+	sigDone := make(chan struct{})
+	go func() {
+		select {
+		case <-sigDone:
+		case <-sigCh:
+			signaled.Store(true)
+			p.Send(interruptRequestMsg{})
+		}
+	}()
+
 	final, err := p.Run()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "✗ TUI を開始できませんでした:", err)
+	close(sigDone)
+	signal.Stop(sigCh)
+
+	fm, ok := final.(*model)
+	if !ok {
+		fm = m
+	}
+	// 終了理由（正常終了 / 中断 / シグナル / エラー）にかかわらず、
+	// 実行中の rsync を確実に止めてから終了する。
+	fm.terminateChild()
+	saveHistory(fm.src, fm.dst)
+
+	switch {
+	case signaled.Load():
+		// 外部シグナルによる終了（Bubble Tea が先に quit した場合も含む）
+		fm.interrupt = true
+		fm.finalRC = core.ExitInterrupted
+		return fm.finalRCWithInterrupt()
+	case err == nil:
+		return fm.finalRCWithInterrupt()
+	case errors.Is(err, tea.ErrInterrupted):
+		// SIGINT（端末の Ctrl-C が生の入力として届かない場合）
+		fm.interrupt = true
+		fm.finalRC = core.ExitInterrupted
+		return fm.finalRCWithInterrupt()
+	default:
+		fmt.Fprintln(os.Stderr, "✗ TUI を実行できませんでした:", err)
 		return core.ExitError
 	}
-	if fm, ok := final.(*model); ok {
-		saveHistory(fm.src, fm.dst)
-		return fm.finalRCWithInterrupt()
-	}
-	saveHistory(m.src, m.dst)
-	return m.finalRCWithInterrupt()
 }

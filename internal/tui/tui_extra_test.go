@@ -1,12 +1,15 @@
 package tui
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/kazpc1215/safersync/internal/core"
 )
 
 func TestBrowseEntriesAdvanced_filterAndHidden(t *testing.T) {
@@ -99,5 +102,35 @@ func TestModel_ctrlCCancelConfirmation(t *testing.T) {
 	m3 := stepKey(m2, tea.KeyMsg{Type: tea.KeyCtrlC})
 	if !m3.interrupt {
 		t.Error("2回目の Ctrl-C で中断されない")
+	}
+	if m3.finalRC != core.ExitInterrupted {
+		t.Errorf("中断の終了コードは %d のはず: %d", core.ExitInterrupted, m3.finalRC)
+	}
+}
+
+// 外部シグナル（SIGTERM / SIGHUP）も安全中断（130）として扱うこと
+func TestModel_interruptRequest(t *testing.T) {
+	m := newModel("/tmp", "", "")
+	m.width, m.height = 80, 24
+	m2, _ := m.Update(interruptRequestMsg{})
+	fm := m2.(*model)
+	if !fm.interrupt || fm.finalRC != core.ExitInterrupted {
+		t.Errorf("シグナル受信で中断状態にならない: interrupt=%v finalRC=%d", fm.interrupt, fm.finalRC)
+	}
+}
+
+// 差分を確認できなかったときは、開始できずに案内を出すこと
+func TestModel_planErrorBlocksStart(t *testing.T) {
+	m := newModel("/tmp", "", "")
+	m.width, m.height = 80, 24
+	m.stage = stPlanBusy
+	m.prog = nil
+	m2, _ := m.Update(planReadyMsg{plan: core.Plan{Err: errors.New("rsync を実行できませんでした")}})
+	fm := m2.(*model)
+	if fm.stage != stMessage {
+		t.Errorf("エラー時はメッセージ画面になるはず: stage=%d", fm.stage)
+	}
+	if !strings.Contains(fm.msg, "差分を確認できませんでした") {
+		t.Errorf("案内メッセージが無い: %q", fm.msg)
 	}
 }

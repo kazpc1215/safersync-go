@@ -89,17 +89,59 @@ func killTree(cmd *exec.Cmd, sig syscall.Signal) {
 	_ = syscall.Kill(cmd.Process.Pid, sig)
 }
 
+// watchSignals は中断系シグナル（INT / TERM / HUP）の受信を始める。
+// 子プロセスは別プロセスグループで動くため、シグナルを受け取る前に起動すると
+// 子だけが残ってしまう。必ず cmd.Start の前に呼ぶこと。
+func watchSignals() (chan os.Signal, func()) {
+	ch := make(chan os.Signal, 2)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	return ch, func() { signal.Stop(ch) }
+}
+
+// terminateChild は子プロセスグループへ TERM を送り、1 秒後にも残っていれば
+// KILL する（bash 版 run_with_progress の trap と同じ挙動）。
+func terminateChild(cmd *exec.Cmd) {
+	killTree(cmd, syscall.SIGTERM)
+	go func() {
+		time.Sleep(1 * time.Second)
+		killTree(cmd, syscall.SIGKILL)
+	}()
+}
+
 // runPlain は進捗なしで cmd を実行する。stdout/stderr は Job のOut/Errへ直結する。
+// Ctrl-C / TERM / HUP では子プロセスごと確実に止め、130 を返す。
 func runPlain(cmd *exec.Cmd, j *Job) int {
 	cmd.Stdout = j.Out
 	cmd.Stderr = j.Err
-	if err := cmd.Run(); err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			return ee.ExitCode()
-		}
+
+	sigCh, stop := watchSignals()
+	defer stop()
+
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(j.Err, "✗ 実行できませんでした: %s\n", err)
 		return 1
 	}
-	return 0
+	waitDone := make(chan error, 1)
+	go func() { waitDone <- cmd.Wait() }()
+
+	for {
+		select {
+		case err := <-waitDone:
+			return exitCodeOf(err)
+		case <-sigCh:
+			terminateChild(cmd)
+			// 追加のシグナルが来たら、待たずに強制終了する
+			for {
+				select {
+				case <-waitDone:
+					fmt.Fprintln(j.Err, "中断しました")
+					return ExitInterrupted
+				case <-sigCh:
+					killTree(cmd, syscall.SIGKILL)
+				}
+			}
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -122,18 +164,17 @@ func runWithProgress(cmd *exec.Cmd, j *Job) int {
 	cmd.Stdout = tmp
 	cmd.Stderr = tmp
 
+	// 中断（Ctrl-C / TERM / HUP）の受付。起動前に登録して取りこぼしを防ぐ
+	sigCh, stop := watchSignals()
+	defer stop()
+	interrupted := false
+
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(j.Err, "✗ 実行できませんでした: %s\n", err)
 		return 1
 	}
 	waitDone := make(chan error, 1)
 	go func() { waitDone <- cmd.Wait() }()
-
-	// 中断（Ctrl-C / TERM）の受付
-	sigCh := make(chan os.Signal, 2)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sigCh)
-	interrupted := false
 
 	ticker := time.NewTicker(progressInterval)
 	defer ticker.Stop()
@@ -148,11 +189,9 @@ loop:
 		case <-sigCh:
 			if !interrupted {
 				interrupted = true
-				go func() {
-					time.Sleep(1 * time.Second)
-					killTree(cmd, syscall.SIGKILL) // 1秒経っても止まらなければ強制終了
-				}()
-				killTree(cmd, syscall.SIGTERM)
+				terminateChild(cmd)
+			} else {
+				killTree(cmd, syscall.SIGKILL) // 2回目以降は即時
 			}
 		case <-ticker.C:
 			if interrupted {
@@ -251,6 +290,13 @@ func CopyOne(j *Job) int {
 
 	// 何件・何バイトコピーする必要があるかを先に調べる
 	plan := j.PlanChanges()
+	if plan.Err != nil {
+		// 差分が確認できないまま進むと「すべて最新です」と誤報告してしまう
+		fmt.Fprintf(j.Err, "✗ 差分を確認できませんでした: %s\n", plan.Err)
+		fmt.Fprintln(j.Err, "✗ rsync が使えるか、コピー先に接続できるかを確認してから再実行してください。")
+		j.log(fmt.Sprintf("COPY abort  %s -> %s (diff unavailable)", j.Src, j.Dst))
+		return ExitEnv
+	}
 
 	if plan.Files == 0 {
 		fmt.Fprintln(j.Out, "✓ 転送するものはありません（すべて最新です）")
@@ -285,7 +331,7 @@ func CopyOne(j *Job) int {
 			fmt.Fprintln(j.Err, "✗ 不要なファイルを削除するか、別の保存先を指定してください。")
 			fmt.Fprintln(j.Err, "✗ 空き容量を無視して続行するには --ignore-space-check を付けてください。")
 			j.log(fmt.Sprintf("COPY abort  %s -> %s (not enough space)", j.Src, j.Dst))
-			return 3
+			return ExitEnv
 		}
 	}
 

@@ -32,6 +32,7 @@ const (
 // -----------------------------------------------------------------------
 
 type spinnerTickMsg struct{}
+type interruptRequestMsg struct{} // 外部シグナル（TERM/HUP/INT）による中断要求
 type planReadyMsg struct {
 	srcFiles int
 	srcBytes int64
@@ -231,7 +232,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner++
 		return m, nil
 
+	case interruptRequestMsg:
+		return m, m.interruptAndQuit()
+
 	case planReadyMsg:
+		if msg.plan.Err != nil {
+			// 差分を確認できないまま進めないようにする（「すべて最新」の誤表示防止）
+			m.message("差分を確認できませんでした: "+msg.plan.Err.Error(), stOptions)
+			return m, nil
+		}
 		m.srcScan = core.ScanResult{Files: msg.srcFiles, Bytes: msg.srcBytes}
 		m.plan = msg.plan
 		free := core.FreeBytes(m.dst)
@@ -307,12 +316,7 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		// いつでも安全中断: 子プロセスも止め、130 で終了（bash 版 tui_on_interrupt と同じ）
-		if m.transfer != nil && m.transfer.StartedOK() {
-			m.transfer.Interrupt()
-		}
-		m.finalRC = 130
-		m.interrupt = true
-		return m, tea.Quit
+		return m, m.interruptAndQuit()
 	case "esc":
 		if m.showLog {
 			m.showLog = false
@@ -410,6 +414,17 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+// interruptAndQuit は転送中の rsync も止めて、130（中断）でウィザードを終了する。
+// Ctrl-C の2回目と、外部シグナル（SIGTERM/SIGHUP）の両方から使う。
+func (m *model) interruptAndQuit() tea.Cmd {
+	if m.transfer != nil && m.transfer.StartedOK() {
+		m.transfer.Interrupt()
+	}
+	m.finalRC = core.ExitInterrupted
+	m.interrupt = true
+	return tea.Quit
 }
 
 // goBack は Esc で1つ前のステージへ。step_src→終了、src→vol、…、preview→options。

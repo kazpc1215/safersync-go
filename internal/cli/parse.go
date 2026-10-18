@@ -95,8 +95,11 @@ func Parse(argv []string) (*core.Options, error) {
 			v, _ := value(argv, &i)
 			opts.MountRoot = v
 		case a == "--job":
-			v1, _ := value(argv, &i)
-			v2, _ := value(argv, &i)
+			v1, ok1 := value(argv, &i)
+			v2, ok2 := value(argv, &i)
+			if !ok1 || v1 == "" || !ok2 || v2 == "" {
+				return nil, fmt.Errorf("--job にはコピー元とコピー先のパスを指定してください（例: --job ~/写真 /Volumes/HDD/写真）")
+			}
 			opts.Jobs = append(opts.Jobs, core.JobSpec{From: v1, To: v2})
 		case strings.HasPrefix(a, "--mount-root="):
 			opts.MountRoot = strings.TrimPrefix(a, "--mount-root=")
@@ -152,5 +155,10 @@ func value(argv []string, i *int) (string, bool) {
 }
 
 func finish(opts *core.Options, positional *posArgSet) (*core.Options, error) {
+	// --job とコピー元・コピー先（位置引数 / --from / --to）の併用は、
+	// どちらかが黙って無視されてしまうためエラーにする。
+	if len(opts.Jobs) > 0 && (opts.From != "" || opts.To != "") {
+		return nil, fmt.Errorf("コピー元・コピー先は --job と同時に指定できません（--job を使うか、位置引数で1組だけ指定してください）")
+	}
 	return opts, nil
 }

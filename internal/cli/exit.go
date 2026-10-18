@@ -7,6 +7,6 @@ const (
 	ExitOK          = core.ExitOK
 	ExitError       = core.ExitError
 	ExitUnmounted   = core.ExitUnmounted
-	ExitNoSpace     = core.ExitNoSpace
+	ExitEnv         = core.ExitEnv
 	ExitInterrupted = core.ExitInterrupted
 )

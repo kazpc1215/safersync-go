@@ -130,3 +130,29 @@ func (t *Transfer) Interrupt() {
 		killTree(t.cmd, syscall.SIGKILL)
 	}()
 }
+
+// Terminate は子プロセスグループを止め、終了するまで待つ（最大 timeout、
+// 終わらなければ KILL する）。TUI の終了時に呼び、rsync が孤児として
+// コピーを続けないようにするための保険。
+//
+// Wait を別のゴルーチンが呼んでいても安全（自身は Wait を呼ばない）。
+func (t *Transfer) Terminate(timeout time.Duration) {
+	if !t.StartedOK() {
+		return
+	}
+	killTree(t.cmd, syscall.SIGTERM)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if !t.alive() {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	killTree(t.cmd, syscall.SIGKILL)
+}
+
+// alive は子プロセスがまだ終了していないかを返す。
+// Wait 済みのプロセスには Signal(0) が ErrProcessDone を返す。
+func (t *Transfer) alive() bool {
+	return t.cmd.Process.Signal(syscall.Signal(0)) == nil
+}

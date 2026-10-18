@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/kazpc1215/safersync/internal/core"
@@ -145,5 +146,49 @@ func TestRun_unimplementedCopy(t *testing.T) {
 	}
 	if got := errOut.String(); got == "" {
 		t.Error("未実装メッセージが出ていない")
+	}
+}
+
+func TestParse_jobRequiresTwoPaths(t *testing.T) {
+	if _, err := Parse([]string{"--job", "/src"}); err == nil {
+		t.Fatal("--job の引数不足はエラーになるべき")
+	}
+	if _, err := Parse([]string{"--job", "/src", ""}); err == nil {
+		t.Fatal("--job に空のパスはエラーになるべき")
+	}
+	opts, err := Parse([]string{"--job", "/src", "/dst", "--job", "/src2", "/dst2"})
+	if err != nil {
+		t.Fatalf("エラー: %v", err)
+	}
+	if len(opts.Jobs) != 2 || opts.Jobs[1].From != "/src2" || opts.Jobs[1].To != "/dst2" {
+		t.Fatalf("--job が2組とも入るはず: %+v", opts.Jobs)
+	}
+}
+
+func TestParse_jobConflictsWithSinglePair(t *testing.T) {
+	// どちらかが黙って無視されないよう、併用はエラーにする
+	if _, err := Parse([]string{"--job", "/src", "/dst", "/extra"}); err == nil {
+		t.Fatal("--job と位置引数の併用はエラーになるべき")
+	}
+	if _, err := Parse([]string{"--from", "/a", "--job", "/src", "/dst"}); err == nil {
+		t.Fatal("--job と --from の併用はエラーになるべき")
+	}
+}
+
+// rsync が無い環境では、成功と誤報告せずに環境エラー（3）で止まること
+func TestRun_rsyncMissing(t *testing.T) {
+	t.Setenv("PATH", "/nonexistent")
+
+	src, dst := t.TempDir(), t.TempDir()
+	var out, errOut bytes.Buffer
+	code := Run([]string{src, dst}, &out, &errOut)
+	if code != ExitEnv {
+		t.Fatalf("want exit %d, got %d (stdout=%q stderr=%q)", ExitEnv, code, out.String(), errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "rsync") {
+		t.Errorf("rsync が見つからない旨のメッセージが出ていない: %q", errOut.String())
+	}
+	if strings.Contains(out.String(), "すべて最新") {
+		t.Errorf("差分を確認できていないのに成功と誤報告している: %q", out.String())
 	}
 }

@@ -58,6 +58,14 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		return doStatus(opts, c, stdout)
 	}
 
+	// rsync はこのツールの実行に必須。無いまま進むと「差分なし」「照合 OK」と
+	// 誤って成功を報告してしまうため、開始前に止める（終了コード 3）。
+	if !core.RsyncAvailable() {
+		fmt.Fprintln(stderr, "✗ rsync が見つかりません（macOS / Linux には標準搭載されています）")
+		fmt.Fprintln(stderr, "✗ rsync をインストールしてから再実行してください。")
+		return ExitEnv
+	}
+
 	// --- 対話ウィザード（TUI）---
 	//   引数なしで対話端末なら自動起動。--tui/-i なら明示的に起動する。
 	inTTY, outTTY := isTTY(os.Stdin), isTTY(os.Stdout)

@@ -20,7 +20,15 @@ func VerifyOne(j *Job) int {
 	}
 
 	// --delete を付けないので、転送先の余分なファイルは差分として出ない
-	raw := j.CollectDiff("%i %n")
+	raw, err := j.CollectDiff("%i %n")
+	if err != nil {
+		// 差分を取れない状態で「照合 OK」と報告すると、コピー元を消してよいと
+		// 誤解させてしまうため、必ず失敗として扱う（終了コード 3）。
+		fmt.Fprintf(j.Err, "✗ 照合できませんでした: %s\n", err)
+		fmt.Fprintln(j.Err, "✗ 照合ができていないため、コピー元のデータは削除しないでください。")
+		j.log(fmt.Sprintf("VERIFY failed %s vs %s (rsync error)", j.Src, j.Dst))
+		return ExitEnv
+	}
 
 	// 「ディレクトリの属性・時刻だけの違い（.d…）」は中身とは無関係で、OS 側の
 	// 都合で合わせられないことがある（exFAT のボリューム直下は 1970 年で固定）。

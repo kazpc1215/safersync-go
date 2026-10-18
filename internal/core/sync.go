@@ -3,6 +3,7 @@ package core
 // sync.go - rsync 実行・差分収集・除外制御（bash 版 lib/core/sync.sh の Go 移植）
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -85,9 +86,22 @@ func (j *Job) AllExcludePatterns() []string {
 // 差分収集（bash 版 collect_diff / plan_changes）
 // ---------------------------------------------------------------------------
 
+// RsyncAvailable は rsync が PATH から実行できるかを返す。
+// rsync が無いまま処理を進めると「差分なし」「照合 OK」と誤って成功を報告して
+// しまうため、実行前にここで確認する（終了コード 3）。
+func RsyncAvailable() bool {
+	_, err := exec.LookPath("rsync")
+	return err == nil
+}
+
+// rsyncExitVanished は「走査中にファイルが消えた」(rc=24)。
+// 撮影中の SD カードなどでは dry-run でも起こり得るため、これは成功扱いにする。
+const rsyncExitVanished = 24
+
 // CollectDiff は rsync の dry-run を行い、--out-format の結果を返す（空なら差分なし）。
-// bash 版と同じく、呼び出し時の失敗（rsync 無し等）は黙って空文字にする。
-func (j *Job) CollectDiff(outFormat string) string {
+// rsync を実行できないとき（未インストール・リモートへ到達不能など）はエラーを返す。
+// 「差分なし」と「確認できなかった」を取り違えると、照合 OK の誤報告につながる。
+func (j *Job) CollectDiff(outFormat string) (string, error) {
 	args := []string{"-n", "--out-format=" + outFormat}
 	args = append(args, j.rsyncMetaOpts()...)
 	args = append(args, j.excludeArgs()...)
@@ -95,8 +109,31 @@ func (j *Job) CollectDiff(outFormat string) string {
 		args = append(args, "--checksum")
 	}
 	args = append(args, j.Src+"/", j.Dst+"/")
-	out, _ := exec.Command("rsync", args...).Output()
-	return string(out)
+	out, err := exec.Command("rsync", args...).Output()
+	if err != nil {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			if ee.ExitCode() == rsyncExitVanished {
+				return string(out), nil // 消えたファイルは差分に含めない
+			}
+			if msg := firstLine(string(ee.Stderr)); msg != "" {
+				return "", fmt.Errorf("rsync を実行できませんでした: %s", msg)
+			}
+			return "", fmt.Errorf("rsync がエラー終了しました (rc=%d)", ee.ExitCode())
+		}
+		return "", fmt.Errorf("rsync を実行できませんでした: %w", err)
+	}
+	return string(out), nil
+}
+
+// firstLine は rsync のエラー出力（stderr）から最初の空でない行を取り出す。
+func firstLine(s string) string {
+	for _, line := range strings.Split(s, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			return line
+		}
+	}
+	return ""
 }
 
 // Plan はコピーが必要なファイルの「件数・合計バイト数・一覧」。
@@ -109,13 +146,21 @@ type Plan struct {
 	Transfer []string // 転送されるファイル（>f...）
 	Skipped  []string // スキップ/属性のみの変化（.f... / .d...）
 	Other    []string // その他の差分
+
+	// Err は差分を取得できなかった場合（rsync 不在・到達不能など）に設定される。
+	// このとき Files 等は 0 のままで、「差分なし」と区別する。
+	Err error
 }
 
 // PlanChanges は転送対象のファイルだけを集める。
 // ディレクトリや属性（時刻）だけの変化は数えない（bash 版と同じ）。
 func (j *Job) PlanChanges() Plan {
-	raw := j.CollectDiff("%i %l %n")
 	var plan Plan
+	raw, err := j.CollectDiff("%i %l %n")
+	if err != nil {
+		plan.Err = err
+		return plan
+	}
 	for _, line := range strings.Split(strings.TrimRight(raw, "\n"), "\n") {
 		if line == "" {
 			continue
