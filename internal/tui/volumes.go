@@ -5,6 +5,7 @@ package tui
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/kazpc1215/safersync/internal/core"
 )
@@ -16,7 +17,7 @@ type volumeItem struct {
 	internal bool // "/"（内蔵ディスク）か
 }
 
-// volumeLabel は表示用ラベル。「Macintosh HD 内蔵ディスク   空き 122Gi / 使用 12Gi」。
+// volumeLabel は表示用ラベル。「Macintosh HD 内蔵ディスク   空き 122Gi / 使用 12Gi [████░░]」。
 func volumeLabel(v volumeItem) string {
 	name := filepath.Base(v.path)
 	if v.path == "/" {
@@ -27,7 +28,20 @@ func volumeLabel(v volumeItem) string {
 	if avail != "" {
 		info = fmt.Sprintf("空き %s / 使用 %s", avail, used)
 	}
-	return fmt.Sprintf("%s %s   %s", name, v.note, info)
+	// 簡易容量バー（幅 8）。取得できない場合は省略。
+	bar := ""
+	if total := core.TotalBytes(v.path); total > 0 {
+		free := core.FreeBytes(v.path)
+		usedPct := int((total - free) * 8 / total)
+		if usedPct < 0 {
+			usedPct = 0
+		}
+		if usedPct > 8 {
+			usedPct = 8
+		}
+		bar = " [" + strings.Repeat("█", usedPct) + strings.Repeat("░", 8-usedPct) + "]"
+	}
+	return fmt.Sprintf("%s %s   %s%s", name, v.note, info, bar)
 }
 
 // 走査対象の実ディレクトリ（シンボリックリンクを除外。bash 版と同じ: [ -L ] && continue）

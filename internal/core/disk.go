@@ -93,6 +93,18 @@ func FreeBytes(p string) int64 {
 	return int64(st.Bavail) * int64(st.Bsize)
 }
 
+// TotalBytes は指定パスの総容量をバイトで返す（FreeBytes と対で使う）。
+func TotalBytes(p string) int64 {
+	for !exists(p) && p != "/" {
+		p = Dirname(p)
+	}
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(p, &st); err != nil {
+		return 0
+	}
+	return int64(st.Blocks) * int64(st.Bsize)
+}
+
 // ---------------------------------------------------------------------------
 // 走査（ファイル数・合計バイト数）
 // ---------------------------------------------------------------------------
