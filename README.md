@@ -5,6 +5,8 @@ rsync を安全に使うためのラッパー。**コピー → 照合** をワ�
 [![CI](https://github.com/kazpc1215/safersync-go/actions/workflows/ci.yml/badge.svg)](https://github.com/kazpc1215/safersync-go/actions/workflows/ci.yml)
 
 - **データを削除しません。** 転送先の余分なファイルも、転送元のファイルも消しません（`--delete` 非使用）
+- **コピー先がコピー元の内側なら中止します。** `~/写真` の中へ `~/写真/backup` のように
+  コピーすると実行のたびに入れ子で増え続けるため、開始前にエラーで止めます（同一パスも不可）
 - **設定ファイルはありません。** コピー元・コピー先・除外などはすべてコマンドライン引数で指定します
 - **ランタイム不要。** Go で単一バイナリにコンパイルされているため、Homebrew や Python なしでも動きます
   （内部で標準搭載の `rsync` を呼び出します）
@@ -41,7 +43,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ```sh
 # 例: macOS (Apple Silicon)
-tar -xzf safersync-1.4.0-darwin-arm64.tar.gz
+tar -xzf safersync-1.4.1-darwin-arm64.tar.gz
 mkdir -p ~/.local/bin
 install safersync ~/.local/bin/safersync
 ```
@@ -60,6 +62,8 @@ formula は本リポジトリの `packaging/homebrew/safersync.rb` を tap 側�
 コピーして利用します。この formula は `dist/release/SHA256SUMS` から自動生成し、
 tarball の URL と sha256 をリリースの実物に合わせます（リリース時に `make formula` を実行。
 生成された formula はリリースの添付ファイルにも含まれます）。
+リリース公開時に `Release` ワークフローが、このリリースの `SHA256SUMS` から formula を
+生成して `main` へ自動反映するため、本リポジトリの formula は常に最新リリースと一致します。
 
 ### 方法 D: ソースからビルド（Go 1.27 以降が入っている場合）
 
@@ -120,6 +124,9 @@ make build     # dist/ に全ターゲット（darwin/amd64, darwin/arm64, linux
 make release   # リリース物（dist/release/*.tar.gz + SHA256SUMS）
 make formula   # release の SHA256SUMS から Homebrew formula を生成（tap へコピーする用）
 ```
+
+変更点は [`CHANGELOG.md`](CHANGELOG.md) にまとめています。リリースのメモは GitHub Actions が
+自動生成します。
 
 `make release` の tarball はいずれも静的リンク（`CGO_ENABLED=0`）で、バージョンは
 `make VERSION=1.2.1` のように上書きできます。
