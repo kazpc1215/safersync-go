@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest # shasum を使うため。darwin/linux のクロスコンパイルはどの OS でも可能
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: タグとバージョンの一致を確認
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$TAG" != "$(grep -m1 'VERSION := ' Makefile | cut -d' ' -f3)" ]; then
+            echo "✗ タグ v$TAG と Makefile の VERSION が一致しません" >&2
+            exit 1
+          fi
+      - name: リリース物のビルド（tarball + SHA256SUMS）
+        run: make release
+      - name: GitHub Release へ添付
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/release/*.tar.gz
+            dist/release/SHA256SUMS
+          generate_release_notes: true

@@ -6,7 +6,11 @@ DIST    := dist
 # ターゲット: このMac (darwin/amd64), Apple Silicon, Linux x86_64/ARM64
 TARGETS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
 
-.PHONY: build test vet fmt clean install $(TARGETS)
+# 静的リンク（libc 不依存・任意の環境で動く単一バイナリ）。
+# バージョンはリリースビルド時に上書きできる。
+LDFLAGS := -s -w -X github.com/kazpc1215/safersync/internal/version.Version=$(VERSION)
+
+.PHONY: build test vet fmt clean install release $(TARGETS)
 
 build: $(TARGETS) ## 全ターゲットを dist/ へビルド
 
@@ -22,15 +26,30 @@ fmt:
 clean:
 	rm -rf $(DIST)
 
-install: build ## dist/<os>-<arch>/safersync を PATH へ
-	ln -sfn "$(CURDIR)/$(DIST)/darwin-amd64/$(APP)" ~/.local/bin/$(APP)-go
+install: build ## 現在のプラットフォームのバイナリを ~/.local/bin/safersync へ
+	@command -v safersync >/dev/null 2>&1 && test "$(command -v safersync)" != "$(CURDIR)/$(DIST)/$$(go env GOOS)-$$(go env GOARCH)/$(APP)" || true
+	ln -sfn "$(CURDIR)/$(DIST)/$$(go env GOOS)-$$(go env GOARCH)/$(APP)" ~/.local/bin/$(APP)
+	@echo "  linked: ~/.local/bin/$(APP) -> $(CURDIR)/$(DIST)/$$(go env GOOS)-$$(go env GOARCH)/$(APP)"
 
 $(TARGETS):
 	@os=$(word 1,$(subst /, ,$@)); arch=$(word 2,$(subst /, ,$@)); \
 	echo "== $$os/$$arch =="; \
 	CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
-	  go build -trimpath -ldflags "-s -w" \
+	  go build -trimpath -ldflags "$(LDFLAGS)" \
 	  -o $(DIST)/$$os-$$arch/$(APP) .
+
+# リリース物の作成: 各プラットフォームの tarball + SHA256SUMS
+#   dist/release/safersync-$(VERSION)-<os>-<arch>.tar.gz
+release: clean $(TARGETS) ## リリース用 tarball + チェックサムを dist/release/ へ
+	@rm -rf $(DIST)/release; mkdir -p $(DIST)/release
+	@for d in $(DIST)/*/; do \
+	  base=$$(basename "$$d"); \
+	  case "$$base" in release) continue;; esac; \
+	  os=$${base%%-*}; arch=$${base##*-}; \
+	  tar -C "$$d" -czf "$(DIST)/release/$(APP)-$(VERSION)-$$os-$$arch.tar.gz" $(APP); \
+	  echo "  tar: $(APP)-$(VERSION)-$$os-$$arch.tar.gz"; \
+	done
+	@cd $(DIST)/release && shasum -a 256 *.tar.gz > SHA256SUMS && echo "  done: dist/release/SHA256SUMS"
 
 help:
 	@awk -F':.*##' '/^[a-zA-Z_.-]+:/ { printf "  make %-12s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
