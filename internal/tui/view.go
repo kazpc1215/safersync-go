@@ -341,6 +341,9 @@ func (m model) doneLines() []string {
 	if m.interrupt {
 		out = append(out, "   "+stWarn.Render("中断しました（次回は続きからコピーできます）"))
 	}
+	if m.xferRC != 0 && !m.interrupt {
+		out = append(out, "", "  再試行: [r] 転送を再実行  [v] 照合のみ実行  [Enter] 終了")
+	}
 	// エラー時はログの末尾を表示
 	if m.finalRC != 0 && m.transfer != nil {
 		if data, err := os.ReadFile(m.transfer.LogFile()); err == nil {

@@ -374,6 +374,24 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 		if key == "enter" || key == " " {
 			return m, tea.Quit
 		}
+		// 転送失敗時の再試行/再開フロー
+		if m.xferRC != 0 {
+			switch key {
+			case "r", "R":
+				m.xferRC = 0
+				m.verifyRC = 0
+				m.finalRC = 0
+				if err := m.beginTransfer(); err != nil {
+					m.message("再試行できませんでした: "+err.Error(), stDone)
+					return m, nil
+				}
+				m.stage = stTransfer
+				return m, nil
+			case "v", "V":
+				m.stage = stVerifyBusy
+				return m, startVerifyCmd(m)
+			}
+		}
 		return m, nil
 	}
 
