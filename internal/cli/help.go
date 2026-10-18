@@ -39,6 +39,7 @@ const helpText = `safersync v%s - rsync の安全なラッパー（コピー →
       --mount-root DIR 外付けボリュームの基点（既定: /Volumes。例: /media/ユーザー名）
   -t, --to DIR         コピー先（位置引数と同じ。順序は自由）
   -f, --from DIR       コピー元（位置引数と同じ。順序は自由）
+      --job SRC DST    複数ジョブを順次実行（繰り返し指定可）
   -x, --exclude PAT    追加で除外するパターン（複数可。例: '*.tmp'）
       --fat            コピー先が exFAT/FAT（既定。属性差を比較しない）
       --apfs           コピー先が APFS/HFS+（属性も保持・比較する）

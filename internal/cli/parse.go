@@ -94,6 +94,10 @@ func Parse(argv []string) (*core.Options, error) {
 		case a == "--mount-root":
 			v, _ := value(argv, &i)
 			opts.MountRoot = v
+		case a == "--job":
+			v1, _ := value(argv, &i)
+			v2, _ := value(argv, &i)
+			opts.Jobs = append(opts.Jobs, core.JobSpec{From: v1, To: v2})
 		case strings.HasPrefix(a, "--mount-root="):
 			opts.MountRoot = strings.TrimPrefix(a, "--mount-root=")
 		case a == "--":

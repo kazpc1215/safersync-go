@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/kazpc1215/safersync/internal/core"
@@ -71,91 +70,105 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		return tui.RunTui(mountRootOf(opts), opts.From, opts.To)
 	}
 
-	// --- コピー元とコピー先 ---
-	if opts.From == "" {
-		fmt.Fprintln(stderr, "✗ コピー元を指定してください（例: safersync ~/書類 /Volumes/HDD/書類）")
-		return ExitError
-	}
-	if opts.To == "" {
-		fmt.Fprintln(stderr, "✗ コピー先を指定してください（例: safersync ~/書類 /Volumes/HDD/書類）")
-		return ExitError
-	}
-
-	src := opts.From
-	dst := opts.To
-	if !core.IsRemote(src) {
-		src = core.AbsPath(src)
-	}
-	if !core.IsRemote(dst) {
-		dst = core.AbsPath(dst)
-	}
-
-	if !core.IsRemote(src) {
-		if !isDirPath(src) {
-			fmt.Fprintf(stderr, "✗ コピー元が存在しません: %s\n", src)
+	// --- 実行対象ジョブの決定（単発 or 複数）---
+	type pair struct{ src, dst string }
+	var pairs []pair
+	if len(opts.Jobs) > 0 {
+		for _, j := range opts.Jobs {
+			pairs = append(pairs, pair{j.From, j.To})
+		}
+	} else {
+		if opts.From == "" || opts.To == "" {
+			fmt.Fprintln(stderr, "✗ コピー元とコピー先を指定してください（例: safersync ~/書類 /Volumes/HDD/書類）")
 			return ExitError
 		}
+		pairs = append(pairs, pair{opts.From, opts.To})
 	}
-	if !core.IsRemote(dst) {
-		if fi, err := os.Stat(dst); err == nil && !fi.IsDir() {
-			fmt.Fprintf(stderr, "✗ コピー先がフォルダではありません: %s\n", dst)
-			return ExitError
+
+	lastRC := 0
+	for idx, p := range pairs {
+		if len(pairs) > 1 {
+			fmt.Fprintf(stdout, "\n%s=== ジョブ %d/%d ===%s\n", c.bold, idx+1, len(pairs), c.reset)
+		}
+
+		src := p.src
+		dst := p.dst
+		if !core.IsRemote(src) {
+			src = core.AbsPath(src)
+		}
+		if !core.IsRemote(dst) {
+			dst = core.AbsPath(dst)
+		}
+
+		if !core.IsRemote(src) {
+			if !isDirPath(src) {
+				fmt.Fprintf(stderr, "✗ コピー元が存在しません: %s\n", src)
+				lastRC = ExitError
+				continue
+			}
+		}
+		if !core.IsRemote(dst) {
+			if fi, err := os.Stat(dst); err == nil && !fi.IsDir() {
+				fmt.Fprintf(stderr, "✗ コピー先がフォルダではありません: %s\n", dst)
+				lastRC = ExitError
+				continue
+			}
+		}
+
+		fmt.Fprintf(stdout, "\n%s▶ %s → %s%s\n", c.bold, src, dst, c.reset)
+
+		mountRoot := mountRootOf(opts)
+		if !core.IsRemote(dst) && !core.DestIsMounted(dst, mountRoot) {
+			fmt.Fprintf(stderr, "✗ コピー先のボリュームがマウントされていません: %s\n", dst)
+			lastRC = ExitUnmounted
+			continue
+		}
+
+		showProgress := outTTY
+		if opts.NoProgress {
+			showProgress = false
+		}
+		if opts.Progress {
+			showProgress = true
+		}
+
+		job := &core.Job{
+			Src: src, Dst: dst,
+			Excludes:     opts.Excludes,
+			FAT:          opts.FAT,
+			Checksum:     opts.Checksum,
+			IgnoreSpace:  opts.IgnoreSpaceCheck,
+			Verbose:      opts.Stats,
+			ShowProgress: showProgress,
+			NoCaffeinate: opts.NoCaffeinate,
+			DryRun:       opts.DryRun,
+			Log:          core.LogMsg,
+			Out:          stdout,
+			Err:          stderr,
+		}
+
+		rc := core.RunJob(job, opts.VerifyOnly, opts.DryRun, !opts.NoVerify)
+		if rc != 0 {
+			lastRC = rc
+		}
+
+		fmt.Fprintln(stdout)
+		switch {
+		case rc != 0:
+			fmt.Fprintln(stderr, "✗ 一部の処理で問題が発生しました（上記のログを確認してください）")
+		case opts.DryRun:
+			fmt.Fprintln(stdout, "✓ dry-run を終えました（実際にはコピーしていません）")
+		case opts.VerifyOnly:
+			fmt.Fprintln(stdout, "✓ 照合のみ完了しました")
+		case job.TotalFiles == 0:
+			fmt.Fprintln(stdout, "✓ すべて完了（新しくコピーしたファイルはありません）")
+		default:
+			fmt.Fprintf(stdout, "%s✓ すべて完了（%d ファイル / %s / %s）%s\n",
+				c.green, job.TotalFiles, core.FmtBytes(job.TotalBytes),
+				core.FmtDuration(int64(time.Since(start).Seconds())), c.reset)
 		}
 	}
-
-	fmt.Fprintf(stdout, "\n%s▶ %s → %s%s\n", c.bold, src, dst, c.reset)
-
-	// 未マウントの外付けボリュームへ書き込まない（ローカルコピー先のみ）
-	mountRoot := mountRootOf(opts)
-	if !core.IsRemote(dst) && !core.DestIsMounted(dst, mountRoot) {
-		fmt.Fprintf(stderr, "✗ コピー先のボリュームがマウントされていません: %s\n", dst)
-		fmt.Fprintln(stderr, "✗ 外付け媒体を接続してから再実行してください。")
-		fmt.Fprintf(stderr, "✗ 現在の %s: %s\n", mountRoot, strings.Join(volumeNames(mountRoot), " "))
-		return ExitUnmounted
-	}
-
-	// 進捗表示（既定はターミナルのときだけ ON。パイプやログでは出さない）
-	showProgress := outTTY
-	if opts.NoProgress {
-		showProgress = false
-	}
-	if opts.Progress {
-		showProgress = true
-	}
-
-	job := &core.Job{
-		Src: src, Dst: dst,
-		Excludes:     opts.Excludes,
-		FAT:          opts.FAT,
-		Checksum:     opts.Checksum,
-		IgnoreSpace:  opts.IgnoreSpaceCheck,
-		Verbose:      opts.Stats,
-		ShowProgress: showProgress,
-		NoCaffeinate: opts.NoCaffeinate,
-		DryRun:       opts.DryRun,
-		Log:          core.LogMsg,
-		Out:          stdout,
-		Err:          stderr,
-	}
-
-	rc := core.RunJob(job, opts.VerifyOnly, opts.DryRun, !opts.NoVerify)
-
-	fmt.Fprintln(stdout)
-	switch {
-	case rc != 0:
-		fmt.Fprintln(stderr, "✗ 一部の処理で問題が発生しました（上記のログを確認してください）")
-	case opts.DryRun:
-		fmt.Fprintln(stdout, "✓ dry-run を終えました（実際にはコピーしていません）")
-	case opts.VerifyOnly:
-		fmt.Fprintln(stdout, "✓ 照合のみ完了しました")
-	case job.TotalFiles == 0:
-		fmt.Fprintln(stdout, "✓ すべて完了（新しくコピーしたファイルはありません）")
-	default:
-		fmt.Fprintf(stdout, "%s✓ すべて完了（%d ファイル / %s / %s）%s\n",
-			c.green, job.TotalFiles, core.FmtBytes(job.TotalBytes),
-			core.FmtDuration(int64(time.Since(start).Seconds())), c.reset)
-	}
-	return rc
+	return lastRC
 }
 
 // mountRootOf はコピー先判定に使うボリューム基点（環境変数 → 引数の順で決める）。
