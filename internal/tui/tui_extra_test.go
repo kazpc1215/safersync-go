@@ -134,3 +134,81 @@ func TestModel_planErrorBlocksStart(t *testing.T) {
 		t.Errorf("案内メッセージが無い: %q", fm.msg)
 	}
 }
+
+// プロンプト入力はマルチバイト（日本語 IME）や貼り付けも受け付けること
+func TestPrompt_multibyteInput(t *testing.T) {
+	m := newModel("/Volumes", "", "")
+	m.width, m.height = 100, 30
+	m.stage = stDestDir
+	m.prompting = true
+	m.promptKind = pkNew
+	m.browseDir = t.TempDir()
+
+	m = stepKey(m, key("あいう"))
+	if m.prompt != "あいう" {
+		t.Errorf("日本語入力が反映されていない: %q", m.prompt)
+	}
+	m = stepKey(m, tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.prompt != "あい" {
+		t.Errorf("backspace が rune 単位で消していない: %q", m.prompt)
+	}
+	m = stepKey(m, key("x y")) // 貼り付け相当（複数 rune の一括入力）
+	m = stepKey(m, space())
+	if m.prompt != "あいx y " {
+		t.Errorf("複数 rune・スペースの入力が壊れた: %q", m.prompt)
+	}
+}
+
+// プロンプト中の q / g / ? は画面操作に奪われず、文字として入力されること
+func TestPrompt_qgQuestionAreText(t *testing.T) {
+	m := newModel("/Volumes", "", "")
+	m.width, m.height = 100, 30
+	m.stage = stDestDir
+	m.prompting = true
+	m.prompt = ""
+
+	for _, s := range []string{"q", "g", "?"} {
+		m = stepKey(m, key(s))
+	}
+	if m.prompt != "qg?" {
+		t.Errorf("q/g/? が文字として入力されていない: %q", m.prompt)
+	}
+	if m.showLog {
+		t.Error("プロンプト中に g でログ画面が開いた")
+	}
+	if m.showHelp {
+		t.Error("プロンプト中に ? でヘルプが開いた")
+	}
+}
+
+// プロンプト中でないときは q / g / ? は従来どおり画面操作として動くこと
+func TestPrompt_globalKeysStillWork(t *testing.T) {
+	m := newModel("/Volumes", "", "")
+	m.width, m.height = 100, 30
+	m.stage = stSource
+
+	if m2 := stepKey(m, key("?")); !m2.showHelp {
+		t.Error("非プロンプト時の ? でヘルプが開かない")
+	}
+	if m2 := stepKey(m, key("g")); !m2.showLog {
+		t.Error("非プロンプト時の g でログが開かない")
+	}
+}
+
+// オプション画面は 6 項目すべて（追加の除外パターンを含む）を描画すること
+func TestOptionsView_allLines(t *testing.T) {
+	m := newModel("/Volumes", "", "")
+	m.width, m.height = 100, 30
+	m.stage = stOptions
+	m.sel = 5
+
+	v := m.View()
+	if !strings.Contains(v, "追加の除外") {
+		t.Errorf("オプション画面に「追加の除外」行が描画されていない:\n%s", v)
+	}
+	for i := 0; i < 6; i++ {
+		if m.optionLine(i) == "" {
+			t.Errorf("optionLine(%d) が空（項目数の不一致）", i)
+		}
+	}
+}

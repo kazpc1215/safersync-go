@@ -222,7 +222,7 @@ func (m model) Init() tea.Cmd { return nil }
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		return m.updateKey(msg.String())
+		return m.updateKey(msg)
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -288,7 +288,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
+func (m *model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
 	if key != "ctrl+c" {
 		m.confirmCancel = false
 	}
@@ -335,33 +336,41 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "?":
-		m.showHelp = !m.showHelp
-		return m, nil
+		// プロンプト入力中は文字として入力できるようにする（updatePrompt へ流す）
+		if !m.prompting {
+			m.showHelp = !m.showHelp
+			return m, nil
+		}
 	case "l", "L":
-		if m.stage == stPreview {
+		if !m.prompting && m.stage == stPreview {
 			m.showFileList = !m.showFileList
 			m.fileListScroll = 0
 			return m, nil
 		}
 	case "g", "G":
-		m.showLog = !m.showLog
-		m.logScroll = 0
-		return m, nil
-	case "q", "Q":
-		// bash 版と同じ: ソース系・プレビューでは中止、他は Esc と同じ「戻る」
-		if m.prompting || m.stage == stTransfer || m.stage == stVerifyBusy || m.stage == stPlanBusy {
+		if !m.prompting {
+			m.showLog = !m.showLog
+			m.logScroll = 0
 			return m, nil
 		}
-		switch m.stage {
-		case stSource, stSourceDir, stPreview:
-			m.finalRC = 0
-			return m, tea.Quit
-		case stDone:
-			// 完了画面では終了コードを保ったまま終了する（bash 版と同じ）
-			return m, tea.Quit
-		default:
-			return m, m.goBack()
+	case "q", "Q":
+		if !m.prompting {
+			// bash 版と同じ: ソース系・プレビューでは中止、他は Esc と同じ「戻る」
+			if m.stage == stTransfer || m.stage == stVerifyBusy || m.stage == stPlanBusy {
+				return m, nil
+			}
+			switch m.stage {
+			case stSource, stSourceDir, stPreview:
+				m.finalRC = 0
+				return m, tea.Quit
+			case stDone:
+				// 完了画面では終了コードを保ったまま終了する（bash 版と同じ）
+				return m, tea.Quit
+			default:
+				return m, m.goBack()
+			}
 		}
+		// プロンプト入力中の q は文字として挿入
 	}
 	if m.stage == stMessage {
 		// 「[Enter] で戻る」の1枚絵（bash 版 tui_message 相当）
@@ -373,7 +382,7 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.prompting {
-		return m.updatePrompt(key)
+		return m.updatePrompt(msg)
 	}
 	if m.stage == stDone {
 		if key == "enter" || key == " " {
@@ -568,7 +577,8 @@ const (
 	pkExclude
 )
 
-func (m *model) updatePrompt(key string) (tea.Model, tea.Cmd) {
+func (m *model) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
 	switch key {
 	case "enter":
 		input := strings.TrimSpace(m.prompt)
@@ -626,8 +636,13 @@ func (m *model) updatePrompt(key string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	default:
-		if len(key) == 1 {
-			m.prompt += key
+		// 文字入力は rune 単位で受け付ける（日本語 IME・貼り付けなどのマルチバイト対応）。
+		// "up" などの特殊キーは KeyRunes ではないため挿入されない。
+		switch {
+		case msg.Type == tea.KeySpace:
+			m.prompt += " "
+		case !msg.Alt && msg.Type == tea.KeyRunes:
+			m.prompt += string(msg.Runes)
 		}
 		return m, nil
 	}
