@@ -86,11 +86,7 @@ func browseEntriesAdvanced(dir, root string, pickLabel string, canCreate bool, s
 		}
 	}
 	action := "このフォルダを" + pickLabel + "にする"
-	items = append(items,
-		pickItem{kind: pickSelect, label: action},
-		pickItem{kind: pickNew, label: "新しいフォルダを作成する..."},
-		pickItem{kind: pickManual, label: "パスを手動で入力する..."},
-	)
+	items = append(items, pickItem{kind: pickSelect, label: action})
 	return items
 }
 

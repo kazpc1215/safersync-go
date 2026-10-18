@@ -98,7 +98,7 @@ func (m model) View() string {
 		if start+visible < len(entries) {
 			body = append(body, "  ↓ "+itoa(len(entries)-start-visible)+" 件省略")
 		}
-		footer = "[↑/↓] 移動   [Enter] 選択   [/] 検索   [h] 隠し表示切替   [Esc] 戻る"
+		footer = "[↑/↓] 移動   [Enter] 選択   [n] 新規フォルダ   [p] パス入力   [/] 検索   [h] 隠し   [Esc] 戻る"
 	case stOptions:
 		for i := 0; i < 5; i++ {
 			body = append(body, " "+cursor(i == m.sel)+" "+m.optionLine(i))

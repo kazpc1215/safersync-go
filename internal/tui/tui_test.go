@@ -47,12 +47,8 @@ func TestBrowseEntries(t *testing.T) {
 			t.Errorf("隠しフォルダが出ている: %+v", it)
 		}
 	}
-	last := items[len(items)-3:]
-	want := []pickKind{pickSelect, pickNew, pickManual}
-	for i, wk := range want {
-		if last[i].kind != wk {
-			t.Errorf("予約項目の順序が違う: idx%d=%v", i, last[i])
-		}
+	if items[len(items)-1].kind != pickSelect {
+		t.Errorf("最後に「選択」項目が必要: %+v", items[len(items)-1])
 	}
 
 	// 下に入ると ".." が出る

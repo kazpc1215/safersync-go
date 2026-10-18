@@ -413,6 +413,16 @@ func (m *model) updateBrowse(key string) (tea.Model, tea.Cmd) {
 		m.showHidden = !m.showHidden
 		m.sel = 0
 		return m, nil
+	case "n", "N":
+		m.prompting = true
+		m.prompt = ""
+		m.promptLbl = "新しいフォルダ名を入力してください（例: backup/2024）"
+		m.promptKind = pkNew
+	case "p", "P":
+		m.prompting = true
+		m.prompt = ""
+		m.promptLbl = "パスを入力してください（例: /Volumes/HDD/GoPro）"
+		m.promptKind = pkManual
 	case "/":
 		m.prompting = true
 		m.prompt = ""
