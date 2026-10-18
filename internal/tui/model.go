@@ -116,7 +116,6 @@ type model struct {
 	// 実行中
 	transfer   *core.Transfer
 	scanCancel context.CancelFunc // 差分スキャン/照合の中断用（Ctrl-C・終了時）
-	verifyAt   time.Time
 	startAt    time.Time
 
 	// UI

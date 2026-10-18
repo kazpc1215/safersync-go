@@ -223,26 +223,18 @@ func (m model) View() string {
 				}
 			}
 		default:
-			for _, l := range m.previewHeaderLines() {
-				body = append(body, l)
-			}
+			body = append(body, m.previewHeaderLines()...)
 		}
 		for i, item := range m.items {
 			body = append(body, " "+cursor(i == m.sel)+" "+item)
 		}
 	case stTransfer:
-		for _, l := range m.dashboardLines() {
-			body = append(body, l)
-		}
+		body = append(body, m.dashboardLines()...)
 	case stDone:
-		for _, l := range m.doneLines() {
-			body = append(body, l)
-		}
+		body = append(body, m.doneLines()...)
 	}
 	return frame(w, title, header, body, footer)
 }
-
-const hideCursor = ""
 
 func (m model) optionLine(i int) string {
 	switch i {

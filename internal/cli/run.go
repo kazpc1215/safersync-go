@@ -196,15 +196,6 @@ func mountRootOf(opts *core.Options) string {
 	return core.AbsPath(root)
 }
 
-func volumeNames(mountRoot string) []string {
-	vols := core.Volumes(mountRoot)
-	names := make([]string, 0, len(vols))
-	for _, v := range vols {
-		names = append(names, filepath.Base(v))
-	}
-	return names
-}
-
 // doStatus は接続状態の表示（bash 版 do_status と同じ書式）。
 func doStatus(opts *core.Options, c colors, stdout io.Writer) int {
 	mountRoot := mountRootOf(opts)
@@ -225,10 +216,4 @@ func doStatus(opts *core.Options, c colors, stdout io.Writer) int {
 func isDirPath(p string) bool {
 	fi, err := os.Stat(p)
 	return err == nil && fi.IsDir()
-}
-
-// notImplemented は未実装の機能に一時的な案内を出す。
-func notImplemented(stderr io.Writer, what string) int {
-	fmt.Fprintf(stderr, "✗ この機能はまだ移植中です: %s\n（bash 版 ~/safersync/bin/safersync をご利用ください）\n", what)
-	return ExitError
 }

@@ -107,7 +107,3 @@ func createDir(dir, name string) (string, error) {
 	}
 	return target, nil
 }
-
-func nilSafeJoin(dir, name string) string {
-	return core.StripTrailingSlashes(filepath.Join(dir, name))
-}

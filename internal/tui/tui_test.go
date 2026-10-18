@@ -217,12 +217,6 @@ func TestModel_destCreateAndOptionToggle(t *testing.T) {
 		}
 	}
 	m2 := m
-	for i := 0; i <= selectIdx; i++ {
-		m2 = stepKey(m2, down())
-	}
-	m2 = stepKey(m2, up()) // 元に戻す（sel は selectIdx と同じ位置）
-	// Exact: number of downs - 1 up positioning is fragile in unit test; use direct set:
-	m2 = m
 	m2.sel = selectIdx
 	m2 = stepKey(m2, enter())
 	if m2.stage != stOptions {
