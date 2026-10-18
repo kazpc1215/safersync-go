@@ -21,6 +21,21 @@ func (m model) View() string {
 	if w == 0 {
 		w, h = 80, 24
 	}
+	if m.showHelp {
+		return frame(w, progTitle()+" ヘルプ", "",
+			[]string{
+				"  [↑/↓ or j/k] 移動",
+				"  [Enter] 決定 / 開始",
+				"  [Space] オプション切替",
+				"  [/] フィルタ入力",
+				"  [h] 隠しファイル表示切替",
+				"  [Esc] 戻る",
+				"  [Ctrl-C] 安全中断（2回で確定）",
+				"  [q] 中止/終了",
+				"  [?] このヘルプを閉じる",
+				"  マウス: クリックで選択 / ホイールでスクロール",
+			}, " [?] または [Esc] で閉じる")
+	}
 	if w < minWidth || h < minHeight {
 		return frame(w, "safersync", "",
 			[]string{"ターミナルを広げてください（現在 " + itoa(w) + "x" + itoa(h) + "）"}, "")

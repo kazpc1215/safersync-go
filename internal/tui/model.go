@@ -116,6 +116,7 @@ type model struct {
 	// UI
 	spinner       int
 	confirmCancel bool
+	showHelp      bool
 
 	// 描画
 	width, height int
@@ -287,6 +288,10 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 		m.interrupt = true
 		return m, tea.Quit
 	case "esc":
+		if m.showHelp {
+			m.showHelp = false
+			return m, nil
+		}
 		if m.prompting {
 			m.prompting = false
 			return m, nil
@@ -295,14 +300,20 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 			return m, m.goBack()
 		}
 		return m, nil
+	case "?":
+		m.showHelp = !m.showHelp
+		return m, nil
 	case "q", "Q":
 		// bash 版と同じ: ソース系・プレビューでは中止、他は Esc と同じ「戻る」
 		if m.prompting || m.stage == stTransfer || m.stage == stVerifyBusy || m.stage == stPlanBusy {
 			return m, nil
 		}
 		switch m.stage {
-		case stSource, stSourceDir, stPreview, stDone:
+		case stSource, stSourceDir, stPreview:
 			m.finalRC = 0
+			return m, tea.Quit
+		case stDone:
+			// 完了画面では終了コードを保ったまま終了する（bash 版と同じ）
 			return m, tea.Quit
 		default:
 			return m, m.goBack()
@@ -363,6 +374,8 @@ func (m *model) goBack() tea.Cmd {
 		m.loadDestMenu()
 	case stPreview:
 		m.stage = stOptions
+	case stDone:
+		return tea.Quit // Enter 以外でも Esc で終了できるようにする
 	}
 	return nil
 }

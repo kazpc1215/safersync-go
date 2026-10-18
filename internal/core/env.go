@@ -106,9 +106,6 @@ func LogDir() string {
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, "Library", "Logs", "safersync")
 	}
-	if v := os.Getenv("XDG_STATE_HOME"); v != "" {
-		return filepath.Join(v, "safersync")
-	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".local", "share", "safersync")
 }

@@ -142,7 +142,16 @@ func progressBar(pct, w int) string {
 		pct = 100
 	}
 	filled := pct * w / 100
-	return strings.Repeat("█", filled) + strings.Repeat("░", w-filled)
+	// 進捗に応じて色を変える（0-50: 青, 50-90: 黄, 90-100: 緑）
+	color := "12" // 青
+	switch {
+	case pct >= 90:
+		color = "10" // 緑
+	case pct >= 50:
+		color = "11" // 黄
+	}
+	filledStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+	return filledStyle.Render(strings.Repeat("█", filled)) + stDim.Render(strings.Repeat("░", w-filled))
 }
 
 // スタイル（画面に少し彩りを added。非TTYでは ANSI は出ない）

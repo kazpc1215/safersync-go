@@ -36,7 +36,9 @@ func Parse(argv []string) (*core.Options, error) {
 			opts.Checksum = true
 		case a == "--fat":
 			opts.FAT = true
+			opts.APFS = false
 		case a == "--apfs":
+			opts.FAT = false
 			opts.APFS = true
 		case a == "--ignore-space-check":
 			opts.IgnoreSpaceCheck = true
