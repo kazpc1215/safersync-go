@@ -3,6 +3,10 @@ package tui
 // view.go - 描画（bash 版 view_*.sh と同じ1枚絵構成）
 
 import (
+	"os"
+	"strings"
+	"time"
+
 	"github.com/kazpc1215/safersync/internal/core"
 )
 
@@ -53,21 +57,60 @@ func (m model) View() string {
 				}, " [Enter] 決定   [Esc] キャンセル")
 		}
 		body = append(body, " 現在のフォルダ: "+m.browseDir)
-		for i, it := range browseEntries(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate) {
+		// パンくず表示
+		parts := strings.Split(strings.Trim(m.browseDir, "/"), "/")
+		if m.browseDir == "/" {
+			parts = []string{"/"}
+		}
+		body = append(body, " パンくず: / "+strings.Join(parts, " / "))
+		if m.browseFilter != "" {
+			body = append(body, " フィルタ: "+m.browseFilter)
+		}
+		entries := browseEntriesAdvanced(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate, m.showHidden, m.browseFilter)
+		// 画面高さに合わせてスクロール（長い一覧でも収まるように）
+		headerLines := len(body)
+		overhead := 8
+		visible := m.height - overhead - headerLines
+		if visible < 3 {
+			visible = 3
+		}
+		if visible > len(entries) {
+			visible = len(entries)
+		}
+		start := 0
+		if m.sel >= visible {
+			start = m.sel - visible + 1
+		}
+		if start+visible > len(entries) {
+			start = len(entries) - visible
+			if start < 0 {
+				start = 0
+			}
+		}
+		if start > 0 {
+			body = append(body, "  ↑ "+itoa(start)+" 件省略")
+		}
+		for i := start; i < start+visible && i < len(entries); i++ {
+			it := entries[i]
 			pre := " " + cursor(i == m.sel) + " "
 			body = append(body, pre+it.label)
 		}
-		footer = "[↑/↓] 移動   [Enter] 選択   [Esc] 戻る"
+		if start+visible < len(entries) {
+			body = append(body, "  ↓ "+itoa(len(entries)-start-visible)+" 件省略")
+		}
+		footer = "[↑/↓] 移動   [Enter] 選択   [/] 検索   [h] 隠し表示切替   [Esc] 戻る"
 	case stOptions:
 		for i := 0; i < 5; i++ {
 			body = append(body, " "+cursor(i == m.sel)+" "+m.optionLine(i))
 		}
 	case stPlanBusy:
+		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		return frame(w, title, "",
-			[]string{"  差分をスキャンしています..."}, "")
+			[]string{"  " + frames[m.spinner%len(frames)] + " 差分をスキャンしています..."}, "")
 	case stVerifyBusy:
+		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		return frame(w, title, "",
-			[]string{"  コピー後の照合をしています..."}, "")
+			[]string{"  " + frames[m.spinner%len(frames)] + " コピー後の照合をしています..."}, "")
 	case stPreview:
 		for _, l := range m.previewHeaderLines() {
 			body = append(body, l)
@@ -159,7 +202,13 @@ func (m model) dashboardLines() []string {
 	if m.frame.eta >= 0 {
 		etaTxt = "約 " + core.FmtDuration(m.frame.eta)
 	}
+	fileLine := "  コピー中: " + m.frame.file
+	if strings.TrimSpace(m.frame.file) == "" {
+		fileLine = "  コピー中: （ファイル名を取得中...）"
+	}
 	return []string{
+		"",
+		fileLine,
 		"",
 		"  [" + bar + "]  " + itoa(m.frame.pct) + "%",
 		"  " + core.FmtBytes(m.frame.done) + " / " + core.FmtBytes(m.frame.total) +
@@ -169,7 +218,14 @@ func (m model) dashboardLines() []string {
 		"  [▶] ファイル転送中...",
 		"  [ ] コピー後データ整合性照合",
 		"",
-		"  [Ctrl-C] 安全に中断（次回続きから再開できます）",
+		"  経過時間: " + core.FmtDuration(int64(time.Since(m.startAt).Seconds())),
+		"",
+		func() string {
+			if m.confirmCancel {
+				return "  " + stWarn.Render("もう一度 Ctrl-C で中断します")
+			}
+			return "  [Ctrl-C] 安全に中断（次回続きから再開できます）"
+		}(),
 	}
 }
 
@@ -195,8 +251,27 @@ func (m model) doneLines() []string {
 		"   ・照合結果: "+verifyTxt,
 		"   ・ログ保存: "+m.logFile,
 	)
+	if titleOK {
+		out = append(out, "", "  "+stOk.Render("SDカード/メディアを安全に取り外すことができます。"))
+	}
 	if m.interrupt {
 		out = append(out, "   "+stWarn.Render("中断しました（次回は続きからコピーできます）"))
+	}
+	// エラー時はログの末尾を表示
+	if m.finalRC != 0 && m.transfer != nil {
+		if data, err := os.ReadFile(m.transfer.LogFile()); err == nil {
+			lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+			if len(lines) > 0 {
+				out = append(out, "", "  ログ末尾:")
+				start := 0
+				if len(lines) > 5 {
+					start = len(lines) - 5
+				}
+				for _, l := range lines[start:] {
+					out = append(out, "    "+l)
+				}
+			}
+		}
 	}
 	return out
 }

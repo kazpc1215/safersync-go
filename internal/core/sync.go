@@ -30,6 +30,7 @@ type Job struct {
 	IgnoreSpace  bool     // --ignore-space-check
 	Verbose      bool     // -v（rsync --stats）
 	ShowProgress bool     // 進捗表示するか（端末のときだけ true にして渡す）
+	ListFiles    bool     // TUI 用: 転送中ファイル名を --out-format で出力する
 	NoCaffeinate bool
 	DryRun       bool
 

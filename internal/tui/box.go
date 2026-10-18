@@ -23,7 +23,7 @@ import (
 
 func boxTop(w int, title string) string {
 	inner := w - 2
-	label := "─ " + title + " "
+	label := "─ " + stTitle.Render(title) + " "
 	lw := lipgloss.Width(label)
 	avail := inner - lw
 	if avail < 0 {
@@ -112,21 +112,21 @@ func frame(w int, title, header string, body []string, footer string) string {
 
 func checkbox(on bool) string {
 	if on {
-		return "[X]"
+		return stOk.Render("[✔]")
 	}
 	return "[ ]"
 }
 
 func radio(on bool) string {
 	if on {
-		return "(*)"
+		return stCursor.Render("(●)")
 	}
 	return "( )"
 }
 
 func cursor(on bool) string {
 	if on {
-		return ">"
+		return stCursor.Render("▶")
 	}
 	return " "
 }
@@ -148,9 +148,9 @@ func progressBar(pct, w int) string {
 // スタイル（画面に少し彩りを added。非TTYでは ANSI は出ない）
 var (
 	stTitle  = lipgloss.NewStyle().Bold(true)
-	stCursor = lipgloss.NewStyle().Foreground(lipgloss.Color("4")) // 青
-	stOk     = lipgloss.NewStyle().Foreground(lipgloss.Color("2")) // 緑
-	stWarn   = lipgloss.NewStyle().Foreground(lipgloss.Color("3")) // 黄
-	stErr    = lipgloss.NewStyle().Foreground(lipgloss.Color("1")) // 赤
+	stCursor = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "4", Dark: "12"}) // 青
+	stOk     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "2", Dark: "10"}) // 緑
+	stWarn   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "3", Dark: "11"}) // 黄
+	stErr    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "1", Dark: "9"})  // 赤
 	stDim    = lipgloss.NewStyle().Faint(true)
 )

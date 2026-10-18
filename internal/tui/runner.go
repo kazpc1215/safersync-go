@@ -40,7 +40,7 @@ func (m model) footerOf() string {
 	case stSource:
 		return "[↑/↓] 移動   [Enter] 選択   [q] 終了"
 	case stSourceDir, stDestDir:
-		return "[↑/↓] 移動   [Enter] 選択   [Esc] 戻る"
+		return "[↑/↓] 移動   [Enter] 選択   [/] 検索   [h] 隠し表示切替   [Esc] 戻る"
 	case stOptions:
 		return "[↑/↓] 移動   [Space] 切り替え   [Enter] 次へ   [Esc] 戻る"
 	case stPreview:
@@ -53,11 +53,27 @@ func (m model) footerOf() string {
 
 // startPlanCmd は差分スキャン（プレビュー用）を背景で行う。
 func startPlanCmd(m *model) tea.Cmd {
-	j := m.job()
 	return func() tea.Msg {
+		j := m.job()
+		prog := m.prog
+		done := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					prog.Send(spinnerTickMsg{})
+				}
+			}
+		}()
 		plan := j.PlanChanges()
 		s := core.ScanDir(j.Src, j.AllExcludePatterns())
-		return planReadyMsg{srcFiles: s.Files, srcBytes: s.Bytes, plan: plan}
+		close(done)
+		prog.Send(planReadyMsg{srcFiles: s.Files, srcBytes: s.Bytes, plan: plan})
+		return nil
 	}
 }
 
@@ -103,7 +119,7 @@ func (m *model) beginTransfer() error {
 				return
 			case <-tick.C:
 				pct, doneB, total, speed, eta := t.Frame()
-				prog.Send(frameMsg{pct: pct, done: doneB, total: total, speed: speed, eta: eta})
+				prog.Send(frameMsg{pct: pct, done: doneB, total: total, speed: speed, eta: eta, file: t.CurrentFile()})
 			}
 		}
 	}()
@@ -112,8 +128,22 @@ func (m *model) beginTransfer() error {
 
 // startVerifyCmd は照合を背景実行し、出力を回収して送る。
 func startVerifyCmd(m *model) tea.Cmd {
-	job := m.job()
 	return func() tea.Msg {
+		job := m.job()
+		prog := m.prog
+		done := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					prog.Send(spinnerTickMsg{})
+				}
+			}
+		}()
 		var buf bytes.Buffer
 		j := *job
 		j.Out = &buf
@@ -124,6 +154,8 @@ func startVerifyCmd(m *model) tea.Cmd {
 		} else {
 			core.LogMsg("VERIFY diff " + job.Src + " vs " + job.Dst + " [tui]")
 		}
-		return verifyDoneMsg{rc: rc, output: buf.String()}
+		close(done)
+		prog.Send(verifyDoneMsg{rc: rc, output: buf.String()})
+		return nil
 	}
 }

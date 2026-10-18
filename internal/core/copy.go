@@ -195,6 +195,9 @@ func exitCodeOf(err error) int {
 func (j *Job) rsyncArgs() []string {
 	args := append([]string{}, j.rsyncMetaOpts()...)
 	args = append(args, "--human-readable", "--partial")
+	if j.ListFiles {
+		args = append(args, "--out-format=%n")
+	}
 	args = append(args, j.excludeArgs()...)
 	args = append(args, j.Src+"/", j.Dst+"/")
 	if j.Verbose {

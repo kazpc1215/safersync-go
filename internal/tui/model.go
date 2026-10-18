@@ -40,6 +40,7 @@ type planReadyMsg struct {
 type frameMsg struct {
 	pct                     int
 	done, total, speed, eta int64
+	file                    string
 }
 type transferDoneMsg struct{ rc int }
 type verifyDoneMsg struct {
@@ -82,6 +83,8 @@ type model struct {
 	// フォルダ選択の状態
 	browseDir, browseRoot, pickLabel string
 	pickCreate                       bool
+	browseFilter                     string
+	showHidden                       bool
 
 	// プレビュー・転送の結果
 	free    int64
@@ -109,6 +112,10 @@ type model struct {
 	transfer *core.Transfer
 	verifyAt time.Time
 	startAt  time.Time
+
+	// UI
+	spinner       int
+	confirmCancel bool
 
 	// 描画
 	width, height int
@@ -154,6 +161,7 @@ func (m model) job() *core.Job {
 		Checksum:     m.optChecksum,
 		Verbose:      false,
 		ShowProgress: false,
+		ListFiles:    true,
 		NoCaffeinate: !m.optCaffeinate,
 		Log:          core.LogMsg,
 	}
@@ -210,6 +218,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case spinnerTickMsg:
+		m.spinner++
 		return m, nil
 
 	case planReadyMsg:
@@ -261,8 +270,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
+	if key != "ctrl+c" {
+		m.confirmCancel = false
+	}
 	switch key {
 	case "ctrl+c":
+		if !m.confirmCancel {
+			m.confirmCancel = true
+			return m, nil
+		}
 		// いつでも安全中断: 子プロセスも止め、130 で終了（bash 版 tui_on_interrupt と同じ）
 		if m.transfer != nil && m.transfer.StartedOK() {
 			m.transfer.Interrupt()
@@ -387,14 +403,23 @@ func (m model) volumeCandidates() []volumeItem {
 }
 
 func (m *model) updateBrowse(key string) (tea.Model, tea.Cmd) {
-	n := len(browseEntries(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate))
+	n := len(browseEntriesAdvanced(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate, m.showHidden, m.browseFilter))
 	switch key {
 	case "up", "k":
 		m.sel = mod(m.sel-1, n)
 	case "down", "j":
 		m.sel = mod(m.sel+1, n)
+	case "h", "H":
+		m.showHidden = !m.showHidden
+		m.sel = 0
+		return m, nil
+	case "/":
+		m.prompting = true
+		m.prompt = ""
+		m.promptLbl = "フィルタ文字列を入力（空で解除）"
+		m.promptKind = pkFilter
 	case "enter":
-		entries := browseEntries(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate)
+		entries := browseEntriesAdvanced(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate, m.showHidden, m.browseFilter)
 		if m.sel < 0 || m.sel >= len(entries) {
 			return m, nil
 		}
@@ -402,6 +427,7 @@ func (m *model) updateBrowse(key string) (tea.Model, tea.Cmd) {
 		switch it.kind {
 		case pickUp, pickDir:
 			m.browseDir = it.path
+			m.browseFilter = ""
 			m.sel = 0
 		case pickSelect:
 			if m.stage == stSourceDir {
@@ -442,6 +468,7 @@ type promptKind int
 const (
 	pkNew promptKind = iota
 	pkManual
+	pkFilter
 )
 
 func (m *model) updatePrompt(key string) (tea.Model, tea.Cmd) {
@@ -463,6 +490,11 @@ func (m *model) updatePrompt(key string) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.browseDir = target
+			m.sel = 0
+			return m, nil
+		}
+		if m.promptKind == pkFilter {
+			m.browseFilter = input
 			m.sel = 0
 			return m, nil
 		}

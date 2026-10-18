@@ -46,7 +46,19 @@ func isDirFollow(path string) (bool, error) {
 //   - 上の階層（dir が起点や "/" でなければ「..」）
 //   - 隠しでないサブフォルダ（名前順）
 //   - 決定 / 新規作成 / 手動入力 の 3 予約項目
+//
+// browseEntries は隠しフォルダを非表示にする従来挙動（テスト互換）。
 func browseEntries(dir, root string, pickLabel string, canCreate bool) []pickItem {
+	return browseEntriesWithOptions(dir, root, pickLabel, canCreate, false)
+}
+
+// browseEntriesWithOptions は隠しフォルダの表示を切り替えられる版。
+func browseEntriesWithOptions(dir, root string, pickLabel string, canCreate bool, showHidden bool) []pickItem {
+	return browseEntriesAdvanced(dir, root, pickLabel, canCreate, showHidden, "")
+}
+
+// browseEntriesAdvanced は隠し表示＋フィルタを適用する版。
+func browseEntriesAdvanced(dir, root string, pickLabel string, canCreate bool, showHidden bool, filter string) []pickItem {
 	var items []pickItem
 	if dir != root && dir != "/" {
 		items = append(items, pickItem{
@@ -57,12 +69,20 @@ func browseEntries(dir, root string, pickLabel string, canCreate bool) []pickIte
 	entries, err := os.ReadDir(dir)
 	if err == nil {
 		for _, e := range entries {
+			if strings.HasPrefix(e.Name(), ".") && !showHidden {
+				continue // 隠しフォルダは既定で出さない（bash 版と同じ）
+			}
+			if !e.IsDir() {
+				continue
+			}
+			label := e.Name() + "/"
 			if strings.HasPrefix(e.Name(), ".") {
-				continue // 隠しフォルダは出さない（bash 版と同じ）
+				label = e.Name() + "/  (隠し)"
 			}
-			if e.IsDir() {
-				items = append(items, pickItem{kind: pickDir, path: dir + "/" + e.Name(), label: e.Name() + "/"})
+			if filter != "" && !strings.Contains(strings.ToLower(e.Name()), strings.ToLower(filter)) {
+				continue
 			}
+			items = append(items, pickItem{kind: pickDir, path: dir + "/" + e.Name(), label: label})
 		}
 	}
 	action := "このフォルダを" + pickLabel + "にする"
