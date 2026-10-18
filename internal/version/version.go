@@ -5,4 +5,4 @@
 // 上書きできる（CI のリリースビルド用）。
 package version
 
-var Version = "1.2.0"
+var Version = "1.2.1"

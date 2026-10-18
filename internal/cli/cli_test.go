@@ -133,8 +133,8 @@ func TestRun_version(t *testing.T) {
 	if code := Run([]string{"--version"}, &out, &errOut); code != ExitOK {
 		t.Errorf("want exit 0, got %d", code)
 	}
-	if got := out.String(); got != "safersync v1.2.0\n" {
-		t.Errorf("want %#v, got %#v", "safersync v1.2.0\n", got)
+	if got := out.String(); got != "safersync v1.2.1\n" {
+		t.Errorf("want %#v, got %#v", "safersync v1.2.1\n", got)
 	}
 }
 
