@@ -6,10 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
-	"runtime"
-	"strconv"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -19,26 +16,11 @@ import (
 	"github.com/kazpc1215/safersync/internal/core"
 )
 
-// execCommand is a thin wrapper to keep imports tidy and testable.
-var execCommand = exec.Command
-
 // finalRCWithInterrupt は中断時のメッセージを出しつつ終了コードを返す。
 func (m *model) finalRCWithInterrupt() int {
 	if m.interrupt {
 		// bash 版 cleanup 後のメッセージと同じ
 		fmt.Fprintln(os.Stderr, "中断しました（次回は続きからコピーできます）")
-	} else {
-		// 完了を端末ベルと（可能なら）デスクトップ通知で知らせる
-		fmt.Fprint(os.Stderr, "\a")
-		if runtime.GOOS == "darwin" {
-			title := "safersync"
-			msg := "転送が完了しました"
-			if m.finalRC != 0 {
-				msg = "問題が発生しました（終了コード " + strconv.Itoa(m.finalRC) + "）"
-			}
-			_ = execCommand("osascript", "-e",
-				`display notification "`+msg+`" with title "`+title+`"`).Run()
-		}
 	}
 	return m.finalRC
 }
