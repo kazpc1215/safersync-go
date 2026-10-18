@@ -57,6 +57,36 @@ func browseEntriesWithOptions(dir, root string, pickLabel string, canCreate bool
 	return browseEntriesAdvanced(dir, root, pickLabel, canCreate, showHidden, "")
 }
 
+// browseListWindow はブラウザ一覧の表示ウィンドウを決める（長い一覧のスクロール）。
+// View とマウス処理（クリック位置→項目）で同じ計算を使い、ずれないようにする。
+// headerCount は一覧の前に並ぶ行数（現在のフォルダ・パンくず・フィルタ）。
+func (m model) browseListWindow() (entries []pickItem, headerCount, start, visible int) {
+	entries = browseEntriesAdvanced(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate, m.showHidden, m.browseFilter)
+	headerCount = 2
+	if m.browseFilter != "" {
+		headerCount++
+	}
+	overhead := 8
+	visible = m.height - overhead - headerCount
+	if visible < 3 {
+		visible = 3
+	}
+	if visible > len(entries) {
+		visible = len(entries)
+	}
+	start = 0
+	if m.sel >= visible {
+		start = m.sel - visible + 1
+	}
+	if start+visible > len(entries) {
+		start = len(entries) - visible
+		if start < 0 {
+			start = 0
+		}
+	}
+	return entries, headerCount, start, visible
+}
+
 // browseEntriesAdvanced は隠し表示＋フィルタを適用する版。
 func browseEntriesAdvanced(dir, root string, pickLabel string, canCreate bool, showHidden bool, filter string) []pickItem {
 	var items []pickItem

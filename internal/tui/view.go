@@ -117,27 +117,8 @@ func (m model) View() string {
 		if m.browseFilter != "" {
 			body = append(body, " フィルタ: "+m.browseFilter)
 		}
-		entries := browseEntriesAdvanced(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate, m.showHidden, m.browseFilter)
 		// 画面高さに合わせてスクロール（長い一覧でも収まるように）
-		headerLines := len(body)
-		overhead := 8
-		visible := m.height - overhead - headerLines
-		if visible < 3 {
-			visible = 3
-		}
-		if visible > len(entries) {
-			visible = len(entries)
-		}
-		start := 0
-		if m.sel >= visible {
-			start = m.sel - visible + 1
-		}
-		if start+visible > len(entries) {
-			start = len(entries) - visible
-			if start < 0 {
-				start = 0
-			}
-		}
+		entries, _, start, visible := m.browseListWindow()
 		if start > 0 {
 			body = append(body, "  ↑ "+itoa(start)+" 件省略")
 		}
@@ -168,72 +149,80 @@ func (m model) View() string {
 		return frame(w, title, "",
 			[]string{"  " + frames[m.spinner%len(frames)] + " コピー後の照合をしています..."}, "")
 	case stPreview:
-		if m.showFileList {
-			body = append(body, " 転送対象ファイル一覧（l で閉じる）:")
-			lines := m.plan.Lines
-			if len(lines) == 0 {
-				body = append(body, "  （転送対象はありません）")
-			} else {
-				visible := m.height - 10
-				if visible < 3 {
-					visible = 3
-				}
-				if visible > len(lines) {
-					visible = len(lines)
-				}
-				start := m.fileListScroll
-				if start+visible > len(lines) {
-					start = len(lines) - visible
-					if start < 0 {
-						start = 0
-					}
-				}
-				for i := start; i < start+visible && i < len(lines); i++ {
-					body = append(body, "  "+lines[i])
-				}
-				if start > 0 {
-					body = append(body, "  ↑ "+itoa(start)+" 件省略")
-				}
-				if start+visible < len(lines) {
-					body = append(body, "  ↓ "+itoa(len(lines)-start-visible)+" 件省略")
-				}
-			}
-			break
-		}
-		tabs := []string{"概要", "転送対象", "スキップ/その他"}
-		body = append(body, " [Tab] "+tabs[m.previewTab]+"（0:"+tabs[0]+" 1:"+tabs[1]+" 2:"+tabs[2]+"）")
-		switch m.previewTab {
-		case 1:
-			lines := m.plan.Transfer
-			if len(lines) == 0 {
-				body = append(body, "  （転送対象はありません）")
-			} else {
-				for _, l := range lines {
-					body = append(body, "  "+l)
-				}
-			}
-		case 2:
-			lines := append([]string{}, m.plan.Skipped...)
-			lines = append(lines, m.plan.Other...)
-			if len(lines) == 0 {
-				body = append(body, "  （スキップ/その他の差分はありません）")
-			} else {
-				for _, l := range lines {
-					body = append(body, "  "+l)
-				}
-			}
-		default:
-			body = append(body, m.previewHeaderLines()...)
-		}
-		for i, item := range m.items {
-			body = append(body, " "+cursor(i == m.sel)+" "+item)
-		}
+		body = append(body, m.previewBodyLines()...)
 	case stTransfer:
 		body = append(body, m.dashboardLines()...)
 	case stDone:
 		body = append(body, m.doneLines()...)
 	}
 	return frame(w, title, header, body, footer)
+}
+
+// previewBodyLines はプレビュー画面の body（タブ・ファイル一覧・決定メニュー）を組む。
+// View とマウス処理（クリック位置→項目）で同じ計算を使い、ずれないようにする。
+func (m model) previewBodyLines() []string {
+	var body []string
+	if m.showFileList {
+		body = append(body, " 転送対象ファイル一覧（l で閉じる）:")
+		lines := m.plan.Lines
+		if len(lines) == 0 {
+			body = append(body, "  （転送対象はありません）")
+			return body
+		}
+		visible := m.height - 10
+		if visible < 3 {
+			visible = 3
+		}
+		if visible > len(lines) {
+			visible = len(lines)
+		}
+		start := m.fileListScroll
+		if start+visible > len(lines) {
+			start = len(lines) - visible
+			if start < 0 {
+				start = 0
+			}
+		}
+		for i := start; i < start+visible && i < len(lines); i++ {
+			body = append(body, "  "+lines[i])
+		}
+		if start > 0 {
+			body = append(body, "  ↑ "+itoa(start)+" 件省略")
+		}
+		if start+visible < len(lines) {
+			body = append(body, "  ↓ "+itoa(len(lines)-start-visible)+" 件省略")
+		}
+		return body
+	}
+	tabs := []string{"概要", "転送対象", "スキップ/その他"}
+	body = append(body, " [Tab] "+tabs[m.previewTab]+"（0:"+tabs[0]+" 1:"+tabs[1]+" 2:"+tabs[2]+"）")
+	switch m.previewTab {
+	case 1:
+		lines := m.plan.Transfer
+		if len(lines) == 0 {
+			body = append(body, "  （転送対象はありません）")
+		} else {
+			for _, l := range lines {
+				body = append(body, "  "+l)
+			}
+		}
+	case 2:
+		lines := append([]string{}, m.plan.Skipped...)
+		lines = append(lines, m.plan.Other...)
+		if len(lines) == 0 {
+			body = append(body, "  （スキップ/その他の差分はありません）")
+		} else {
+			for _, l := range lines {
+				body = append(body, "  "+l)
+			}
+		}
+	default:
+		body = append(body, m.previewHeaderLines()...)
+	}
+	for i, item := range m.items {
+		body = append(body, " "+cursor(i == m.sel)+" "+item)
+	}
+	return body
 }
 
 func (m model) optionLine(i int) string {
