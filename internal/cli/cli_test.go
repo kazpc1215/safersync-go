@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/kazpc1215/safersync/internal/core"
+	"github.com/kazpc1215/safersync/internal/version"
 )
 
 func TestIsTTY_devNullIsNotTTY(t *testing.T) {
@@ -181,8 +182,9 @@ func TestRun_version(t *testing.T) {
 	if code := Run([]string{"--version"}, &out, &errOut); code != ExitOK {
 		t.Errorf("want exit 0, got %d", code)
 	}
-	if got := out.String(); got != "safersync v1.3.0\n" {
-		t.Errorf("want %#v, got %#v", "safersync v1.3.0\n", got)
+	want := "safersync v" + version.Version + "\n"
+	if got := out.String(); got != want {
+		t.Errorf("want %#v, got %#v", want, got)
 	}
 }
 
