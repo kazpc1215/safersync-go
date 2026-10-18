@@ -44,10 +44,13 @@ func Parse(argv []string) (*core.Options, error) {
 			opts.IgnoreSpaceCheck = true
 		case a == "--verbose" || a == "--stats" || a == "-v":
 			opts.Stats = true
+		// --progress / --no-progress は最後に指定された方が勝つ（bash 版と同じ）
 		case a == "--progress":
 			opts.Progress = true
+			opts.NoProgress = false
 		case a == "--no-progress":
 			opts.NoProgress = true
+			opts.Progress = false
 		case a == "--no-caffeinate":
 			opts.NoCaffeinate = true
 		case a == "--from" || a == "-f":

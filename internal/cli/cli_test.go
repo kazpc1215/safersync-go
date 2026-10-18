@@ -64,6 +64,27 @@ func TestParse_fromToOrder(t *testing.T) {
 	}
 }
 
+func TestParse_progressLastWins(t *testing.T) {
+	// bash 版と同じく、--progress / --no-progress は最後の指定が勝つ
+	opts, err := Parse([]string{"--progress", "--no-progress", "/src", "/dst"})
+	if err != nil {
+		t.Fatalf("エラー: %v", err)
+	}
+	if opts.Progress || !opts.NoProgress {
+		t.Errorf("--progress --no-progress → Progress=%v NoProgress=%v（NoProgress が勝つべき）",
+			opts.Progress, opts.NoProgress)
+	}
+
+	opts, err = Parse([]string{"--no-progress", "--progress", "/src", "/dst"})
+	if err != nil {
+		t.Fatalf("エラー: %v", err)
+	}
+	if !opts.Progress || opts.NoProgress {
+		t.Errorf("--no-progress --progress → Progress=%v NoProgress=%v（Progress が勝つべき）",
+			opts.Progress, opts.NoProgress)
+	}
+}
+
 func TestParse_tooManyArgs(t *testing.T) {
 	_, err := Parse([]string{"x", "y", "z"})
 	if err == nil {
