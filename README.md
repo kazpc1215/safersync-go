@@ -24,6 +24,8 @@ curl -fsSL https://raw.githubusercontent.com/kazpc1215/safersync-go/main/install
 ```
 
 `~/.local/bin/safersync` に配置し、PATH が通っていない場合は追加を案内します。
+ダウンロードした tarball はリリースの `SHA256SUMS` と照合し、一致しない場合・
+チェックサムを取得できない場合はインストールを中止します。
 `safersync: command not found` が出る場合は、シェル設定（`~/.zshrc` など）に:
 
 ```sh
