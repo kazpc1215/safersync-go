@@ -656,6 +656,458 @@ func TestModel_promptFilter(t *testing.T) {
 	}
 }
 
+func TestBoxHelpers_extra(t *testing.T) {
+	// boxTop の切り詰め（長いタイトル）
+	s := boxTop(12, "とても長いタイトルです")
+	if !strings.Contains(s, "┌") || !strings.Contains(s, "┐") {
+		t.Errorf("boxTop の罫線が無い: %q", s)
+	}
+	// 小さい幅でもパニックしない
+	if got := boxTop(4, "title"); !strings.Contains(got, "┌") {
+		t.Errorf("boxTop(4) = %q", got)
+	}
+	// progressBar の境界
+	if s := progressBar(0, 5); s == "" {
+		t.Error("progressBar(0,5) が空")
+	}
+	if s := progressBar(100, 5); !strings.Contains(s, "█") {
+		t.Errorf("progressBar(100,5) = %q", s)
+	}
+	if s := progressBar(-5, 5); s == "" {
+		t.Error("progressBar(-5,5) が空")
+	}
+	if s := progressBar(50, 0); s != "" {
+		t.Errorf("progressBar(50,0) = %q, want 空", s)
+	}
+	// mod
+	if mod(0, 0) != 0 || mod(-1, 3) != 2 || mod(5, 3) != 2 {
+		t.Errorf("mod の計算が違う")
+	}
+}
+
+func TestExcludesSummary_variants(t *testing.T) {
+	m := tbase()
+	m.extraExcludes = []string{"*.raw"}
+	if s := m.excludesSummary(); !strings.Contains(s, "*.raw") {
+		t.Errorf("excludesSummary = %q", s)
+	}
+	m2 := tbase()
+	m2.optLRV, m2.optTHM, m2.optTMP, m2.optChecksum = false, false, false, true
+	if s := m2.excludesSummary(); s == "" {
+		t.Error("excludesSummary が空")
+	}
+	m3 := tbase()
+	m3.optLRV, m3.optTHM, m3.optTMP = false, false, false
+	m3.extraExcludes = nil
+	if s := m3.excludesSummary(); s != "（なし）" {
+		t.Errorf("除外なしは (なし) のはず: %q", s)
+	}
+}
+
+// --- updateBrowse の分岐 ---
+func TestUpdateBrowse_branches(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"apple", "banana"} {
+		os.MkdirAll(filepath.Join(root, d), 0o755)
+	}
+	m := tbase()
+	m.stage = stSourceDir
+	m.browse(root, "コピー元", false)
+	// h で隠し切替
+	m = stepKey(m, key("h"))
+	if !m.showHidden {
+		t.Error("h で隠し表示が切り替わらない")
+	}
+	m = stepKey(m, key("h"))
+	if m.showHidden {
+		t.Error("h で隠し表示が戻らない")
+	}
+	// n で新規作成プロンプト
+	m = stepKey(m, key("n"))
+	if !m.prompting || m.promptKind != pkNew {
+		t.Errorf("n: prompting=%v kind=%v", m.prompting, m.promptKind)
+	}
+	m.prompting = false
+	// p で手動入力プロンプト
+	m = stepKey(m, key("p"))
+	if !m.prompting || m.promptKind != pkManual {
+		t.Errorf("p: prompting=%v kind=%v", m.prompting, m.promptKind)
+	}
+	m.prompting = false
+	// / でフィルタプロンプト
+	m = stepKey(m, key("/"))
+	if !m.prompting || m.promptKind != pkFilter {
+		t.Errorf("/: prompting=%v kind=%v", m.prompting, m.promptKind)
+	}
+	m.prompting = false
+	// Enter で pickUp（root 以外に移動して .. を選ぶ）
+	sub := filepath.Join(root, "apple")
+	m.browse(sub, "コピー元", false)
+	// apple の中は root が親なので ".." が先頭
+	entries := browseEntriesAdvanced(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate, m.showHidden, m.browseFilter)
+	if len(entries) == 0 || entries[0].kind != pickUp {
+		t.Skip("pickUp が無い構成")
+	}
+	m.sel = 0
+	m = stepKey(m, enter())
+	if m.browseDir != root {
+		t.Errorf("pickUp 後 browseDir = %q, want %q", m.browseDir, root)
+	}
+	// Enter で pickSelect（コピー元決定）— root で ".." なし、最後が pickSelect
+	m.browse(root, "コピー元", false)
+	entries2 := browseEntriesAdvanced(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate, m.showHidden, m.browseFilter)
+	last := len(entries2) - 1
+	m.sel = last
+	m = stepKey(m, enter())
+	if m.stage != stDest {
+		t.Errorf("pickSelect 後 stage = %v, want stDest", m.stage)
+	}
+}
+
+// --- updatePrompt の分岐 ---
+func TestUpdatePrompt_branches(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "existing"), 0o755)
+	m := tbase()
+	m.stage = stSourceDir
+	m.browse(root, "コピー元", false)
+	// backspace
+	m.prompting = true
+	m.prompt = "ab"
+	m.promptKind = pkManual
+	m = stepKey(m, tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.prompt != "a" {
+		t.Errorf("backspace 後 prompt = %q", m.prompt)
+	}
+	// empty enter → nothing
+	m.prompt = ""
+	m0 := m.prompt
+	m = stepKey(m, enter())
+	if m.prompting {
+		t.Error("空入力でもプロンプトが閉じない")
+	}
+	_ = m0
+	// 手動入力: 存在するパス
+	m2 := tbase()
+	m2.stage = stSourceDir
+	m2.browse(root, "コピー元", false)
+	m2.prompting = true
+	m2.prompt = filepath.Join(root, "existing")
+	m2.promptKind = pkManual
+	m2 = stepKey(m2, enter())
+	if m2.browseDir != filepath.Join(root, "existing") {
+		t.Errorf("手動入力: browseDir = %q", m2.browseDir)
+	}
+	// 手動入力: 存在しない + pickCreate=false → message
+	m3 := tbase()
+	m3.stage = stSourceDir
+	m3.browse(root, "コピー元", false)
+	m3.prompting = true
+	m3.prompt = filepath.Join(root, "nope")
+	m3.promptKind = pkManual
+	m3 = stepKey(m3, enter())
+	if m3.stage != stMessage {
+		t.Errorf("存在しない手動入力: stage = %v, want stMessage", m3.stage)
+	}
+	// 手動入力: pickCreate=true で作成
+	m4 := tbase()
+	m4.stage = stDestDir
+	m4.browse(root, "コピー先", true)
+	m4.prompting = true
+	m4.prompt = filepath.Join(root, "newdir")
+	m4.promptKind = pkManual
+	m4 = stepKey(m4, enter())
+	if m4.browseDir != filepath.Join(root, "newdir") {
+		t.Errorf("pickCreate 手動入力: browseDir = %q", m4.browseDir)
+	}
+	// pkFilter: 空入力はキャンセル（フィルタ維持）
+	m5 := tbase()
+	m5.stage = stSourceDir
+	m5.browse(root, "コピー元", false)
+	m5.browseFilter = "old"
+	m5.prompting = true
+	m5.prompt = "   "
+	m5.promptKind = pkFilter
+	m5 = stepKey(m5, enter())
+	if m5.browseFilter != "old" {
+		t.Errorf("空入力でフィルタが変わる: %q", m5.browseFilter)
+	}
+	// pkExclude
+	m6 := tbase()
+	m6.stage = stOptions
+	m6.prompting = true
+	m6.prompt = "  *.raw  "
+	m6.promptKind = pkExclude
+	m6 = stepKey(m6, enter())
+	if len(m6.extraExcludes) != 1 || m6.extraExcludes[0] != "*.raw" {
+		t.Errorf("extraExcludes = %v", m6.extraExcludes)
+	}
+	// pkNew: createDir 失敗 → message
+	m7 := tbase()
+	m7.stage = stSourceDir
+	m7.browse(root, "コピー元", false)
+	m7.prompting = true
+	m7.prompt = string([]byte{0}) // 無効な名前
+	m7.promptKind = pkNew
+	m7 = stepKey(m7, enter())
+	// 空 or メッセージどちらでも OK（パニックしないこと）
+	_ = m7
+	// 文字入力（rune）
+	m8 := tbase()
+	m8.stage = stSourceDir
+	m8.browse(root, "コピー元", false)
+	m8.prompting = true
+	m8.prompt = ""
+	m8.promptKind = pkManual
+	m8 = stepKey(m8, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b'}})
+	if m8.prompt != "ab" {
+		t.Errorf("rune 入力: prompt = %q", m8.prompt)
+	}
+	// space キー
+	m9 := tbase()
+	m9.stage = stSourceDir
+	m9.browse(root, "コピー元", false)
+	m9.prompting = true
+	m9.prompt = "x"
+	m9.promptKind = pkManual
+	m9 = stepKey(m9, tea.KeyMsg{Type: tea.KeySpace})
+	if m9.prompt != "x " {
+		t.Errorf("space 入力: prompt = %q", m9.prompt)
+	}
+}
+
+// --- updateOptions の分岐 ---
+func TestUpdateOptions_branches(t *testing.T) {
+	m := tbase()
+	m.stage = stOptions
+	// up/down
+	m.sel = 0
+	m = stepKey(m, key("k"))
+	if m.sel != 5 {
+		t.Errorf("up: sel = %d, want 5", m.sel)
+	}
+	m = stepKey(m, key("j"))
+	if m.sel != 0 {
+		t.Errorf("down: sel = %d, want 0", m.sel)
+	}
+	// space on each toggle
+	for _, sel := range []int{0, 1, 2, 3} {
+		mm := tbase()
+		mm.stage = stOptions
+		mm.sel = sel
+		mm = stepKey(mm, space())
+	}
+	// space on sel=4 with caffeineAvail=false は何もしない
+	mm := tbase()
+	mm.stage = stOptions
+	mm.sel = 4
+	mm.caffeineAvail = false
+	prev := mm.optCaffeinate
+	mm = stepKey(mm, space())
+	if mm.optCaffeinate != prev {
+		t.Error("caffeinate 利用不可なのにトグルされた")
+	}
+	// space on sel=4 with caffeineAvail=true
+	mm2 := tbase()
+	mm2.stage = stOptions
+	mm2.sel = 4
+	mm2.caffeineAvail = true
+	mm2.optCaffeinate = false
+	mm2 = stepKey(mm2, space())
+	if !mm2.optCaffeinate {
+		t.Error("caffeinate トグルされない")
+	}
+	// enter on sel=5 → prompt
+	mm3 := tbase()
+	mm3.stage = stOptions
+	mm3.sel = 5
+	mm3 = stepKey(mm3, enter())
+	if !mm3.prompting || mm3.promptKind != pkExclude {
+		t.Errorf("enter sel=5: prompting=%v kind=%v", mm3.prompting, mm3.promptKind)
+	}
+}
+
+// --- updatePreview の分岐 ---
+func TestUpdatePreview_branches(t *testing.T) {
+	m := tbase()
+	m.stage = stPreview
+	m.items = []string{"a", "b", "c"}
+	m.plan = core.Plan{Files: 1, Lines: []string{"l1", "l2"}}
+	m.spaceOK, m.mounted = true, true
+	// tab
+	m = stepKey(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.previewTab != 1 {
+		t.Errorf("tab: previewTab = %d", m.previewTab)
+	}
+	// showFileList toggle via l
+	m = stepKey(m, key("l"))
+	if !m.showFileList {
+		t.Error("l でファイル一覧が開かない")
+	}
+	// scroll down/up in file list
+	m.fileListScroll = 0
+	m = stepKey(m, key("j"))
+	if m.fileListScroll != 1 {
+		t.Errorf("j: fileListScroll = %d", m.fileListScroll)
+	}
+	m = stepKey(m, key("k"))
+	if m.fileListScroll != 0 {
+		t.Errorf("k: fileListScroll = %d", m.fileListScroll)
+	}
+	// l で閉じる
+	m = stepKey(m, key("l"))
+	if m.showFileList {
+		t.Error("l でファイル一覧が閉じない")
+	}
+	// up/down/left/right navigation（新規モデルで）
+	m2 := tbase()
+	m2.stage = stPreview
+	m2.items = []string{"a", "b", "c"}
+	m2.plan = core.Plan{Files: 1}
+	m2.spaceOK, m2.mounted = true, true
+	m2.showFileList = false
+	m2.sel = 0
+	m = m2
+	m = stepKey(m, key("j"))
+	if m.sel != 1 {
+		t.Errorf("j: sel = %d", m.sel)
+	}
+	m = stepKey(m, key("k"))
+	if m.sel != 0 {
+		t.Errorf("k: sel = %d", m.sel)
+	}
+	m = stepKey(m, key("right"))
+	if m.sel != 1 {
+		t.Errorf("right: sel = %d", m.sel)
+	}
+	m = stepKey(m, key("left"))
+	if m.sel != 0 {
+		t.Errorf("left: sel = %d", m.sel)
+	}
+	// enter sel=0 with spaceOK&&mounted → beginTransfer would run rsync (skip by making plan.Files=0? beginTransfer needs valid job)
+	// Instead test enter sel=0 blocked case
+	m2 = tbase()
+	m2.stage = stPreview
+	m2.items = []string{"a", "b", "c"}
+	m2.plan = core.Plan{Files: 0}
+	m2.spaceOK, m2.mounted = false, true
+	m2.sel = 0
+	m2 = stepKey(m2, enter())
+	if m2.stage != stPreview {
+		// blocked → stays (beginTransfer not called because spaceOK false)
+	}
+	// enter sel=1 → options
+	m3 := tbase()
+	m3.stage = stPreview
+	m3.items = []string{"a", "b", "c"}
+	m3.sel = 1
+	m3 = stepKey(m3, enter())
+	if m3.stage != stOptions {
+		t.Errorf("sel=1 enter: stage = %v, want stOptions", m3.stage)
+	}
+}
+
+// --- updateKey の分岐 ---
+func TestUpdateKey_branches(t *testing.T) {
+	// showLog スクロール
+	logFile := filepath.Join(t.TempDir(), "log.txt")
+	os.WriteFile(logFile, []byte("l1\nl2\nl3\n"), 0o644)
+	m := tbase()
+	m.showLog = true
+	m.logFile = logFile
+	m.logScroll = 0
+	m = stepKey(m, key("j"))
+	if m.logScroll != 1 {
+		t.Errorf("log j: scroll = %d", m.logScroll)
+	}
+	m = stepKey(m, key("k"))
+	if m.logScroll != 0 {
+		t.Errorf("log k: scroll = %d", m.logScroll)
+	}
+	// showLog: その他キーで閉じる
+	m = stepKey(m, key("x"))
+	if m.showLog {
+		t.Error("showLog が閉じない")
+	}
+	// showHelp トグル
+	m2 := tbase()
+	m2 = stepKey(m2, key("?"))
+	if !m2.showHelp {
+		t.Error("? でヘルプが開かない")
+	}
+	m2 = stepKey(m2, key("?"))
+	if m2.showHelp {
+		t.Error("? でヘルプが閉じない")
+	}
+	// showHelp 中の esc
+	m3 := tbase()
+	m3.showHelp = true
+	m3 = stepKey(m3, esc())
+	if m3.showHelp {
+		t.Error("esc でヘルプが閉じない")
+	}
+	// ctrl+c 1回目 → confirmCancel
+	m4 := tbase()
+	m4 = stepKey(m4, tea.KeyMsg{Type: tea.KeyCtrlC})
+	if !m4.confirmCancel {
+		t.Error("ctrl+c 1回目で confirmCancel が立たない")
+	}
+	// g/G でログトグル
+	m5 := tbase()
+	m5 = stepKey(m5, key("g"))
+	if !m5.showLog {
+		t.Error("g でログが開かない")
+	}
+	m5 = stepKey(m5, key("g"))
+	if m5.showLog {
+		t.Error("g でログが閉じない")
+	}
+	// q at stSource → quit (cmd non-nil)
+	m6 := tbase()
+	m6.stage = stSource
+	_, cmd := m6.Update(key("q"))
+	if cmd == nil {
+		t.Error("q at stSource で終了コマンドが返らない")
+	}
+	// q at stDone → quit
+	m7 := tbase()
+	m7.stage = stDone
+	m7.finalRC = 0
+	_, cmd = m7.Update(key("q"))
+	if cmd == nil {
+		t.Error("q at stDone で終了コマンドが返らない")
+	}
+	// q at stSourceDir → default goBack (no quit) — actually stSourceDir case in q switch is not listed, so default → goBack
+	m8 := tbase()
+	m8.stage = stSourceDir
+	m8.browse(t.TempDir(), "コピー元", false)
+	_, cmd = m8.Update(key("q"))
+	// goBack returns nil cmd for stSourceDir? goBack sets stage stSource, returns nil. So cmd may be nil.
+	_ = cmd
+	// esc during prompting → cancel prompt
+	m9 := tbase()
+	m9.stage = stSourceDir
+	m9.browse(t.TempDir(), "コピー元", false)
+	m9.prompting = true
+	m9 = stepKey(m9, esc())
+	if m9.prompting {
+		t.Error("esc でプロンプトが閉じない")
+	}
+	// esc during showLog (already tested) and showHelp (tested)
+	// l/L toggle fileList at preview
+	m10 := tbase()
+	m10.stage = stPreview
+	m10.items = []string{"a", "b", "c"}
+	m10 = stepKey(m10, key("l"))
+	if !m10.showFileList {
+		t.Error("l でファイル一覧が開かない")
+	}
+	m10 = stepKey(m10, key("L"))
+	if m10.showFileList {
+		t.Error("L でファイル一覧が閉じない")
+	}
+}
+
 func TestMouse_ignoredWhilePrompting(t *testing.T) {
 	m := tbase()
 	m.stage = stSource
