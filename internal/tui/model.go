@@ -122,6 +122,8 @@ type model struct {
 	showHelp       bool
 	showFileList   bool
 	fileListScroll int
+	showLog        bool
+	logScroll      int
 
 	// 描画
 	width, height int
@@ -280,6 +282,23 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 	if key != "ctrl+c" {
 		m.confirmCancel = false
 	}
+	if m.showLog {
+		data, _ := os.ReadFile(m.logFile)
+		lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+		switch key {
+		case "up", "k":
+			if m.logScroll > 0 {
+				m.logScroll--
+			}
+		case "down", "j":
+			if m.logScroll < len(lines)-1 {
+				m.logScroll++
+			}
+		default:
+			m.showLog = false
+		}
+		return m, nil
+	}
 	switch key {
 	case "ctrl+c":
 		if !m.confirmCancel {
@@ -294,6 +313,10 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 		m.interrupt = true
 		return m, tea.Quit
 	case "esc":
+		if m.showLog {
+			m.showLog = false
+			return m, nil
+		}
 		if m.showHelp {
 			m.showHelp = false
 			return m, nil
@@ -315,6 +338,10 @@ func (m *model) updateKey(key string) (tea.Model, tea.Cmd) {
 			m.fileListScroll = 0
 			return m, nil
 		}
+	case "g", "G":
+		m.showLog = !m.showLog
+		m.logScroll = 0
+		return m, nil
 	case "q", "Q":
 		// bash 版と同じ: ソース系・プレビューでは中止、他は Esc と同じ「戻る」
 		if m.prompting || m.stage == stTransfer || m.stage == stVerifyBusy || m.stage == stPlanBusy {

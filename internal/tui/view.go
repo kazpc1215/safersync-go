@@ -21,6 +21,38 @@ func (m model) View() string {
 	if w == 0 {
 		w, h = 80, 24
 	}
+	if m.showLog {
+		data, _ := os.ReadFile(m.logFile)
+		lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+		if len(lines) == 1 && lines[0] == "" {
+			lines = []string{"（ログはまだありません）"}
+		}
+		visible := m.height - 8
+		if visible < 3 {
+			visible = 3
+		}
+		if visible > len(lines) {
+			visible = len(lines)
+		}
+		start := m.logScroll
+		if start+visible > len(lines) {
+			start = len(lines) - visible
+			if start < 0 {
+				start = 0
+			}
+		}
+		body := []string{" ログ: " + m.logFile}
+		for i := start; i < start+visible && i < len(lines); i++ {
+			body = append(body, "  "+lines[i])
+		}
+		if start > 0 {
+			body = append(body, "  ↑ "+itoa(start)+" 件省略")
+		}
+		if start+visible < len(lines) {
+			body = append(body, "  ↓ "+itoa(len(lines)-start-visible)+" 件省略")
+		}
+		return frame(w, progTitle()+" ログ", "", body, " [g] または [Esc] で閉じる")
+	}
 	if m.showHelp {
 		return frame(w, progTitle()+" ヘルプ", "",
 			[]string{
