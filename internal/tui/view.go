@@ -154,6 +154,11 @@ func (m model) View() string {
 		for i := 0; i < 6; i++ {
 			body = append(body, " "+cursor(i == m.sel)+" "+m.optionLine(i))
 		}
+		if m.prompting {
+			// 追加除外パターンの入力中は、一覧の下に入力欄を出す
+			body = append(body, "", "  "+m.promptLbl, "", "  > "+m.prompt+"_")
+			return frame(w, title, "", body, " [Enter] 決定   [Esc] キャンセル")
+		}
 	case stPlanBusy:
 		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		return frame(w, title, "",

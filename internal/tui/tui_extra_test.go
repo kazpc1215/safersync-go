@@ -212,3 +212,21 @@ func TestOptionsView_allLines(t *testing.T) {
 		}
 	}
 }
+
+// オプション画面のプロンプト（追加除外パターンの入力）が描画されること
+func TestOptionsView_promptVisible(t *testing.T) {
+	m := newModel("/Volumes", "", "")
+	m.width, m.height = 100, 30
+	m.stage = stOptions
+	m.prompting = true
+	m.prompt = "テスト"
+	m.promptLbl = "追加で除外するパターンを入力（例: *.tmp）。空でキャンセル"
+
+	v := m.View()
+	if !strings.Contains(v, "追加で除外するパターンを入力") {
+		t.Errorf("プロンプトのラベルが描画されていない:\n%s", v)
+	}
+	if !strings.Contains(v, "テスト") {
+		t.Errorf("入力中の文字が描画されていない:\n%s", v)
+	}
+}
