@@ -151,7 +151,7 @@ func runPlain(cmd *exec.Cmd, j *Job) int {
 // runWithProgress は cmd を実行しながら、転送先の増分から進捗と残り時間を表示する。
 // Ctrl-C / TERM で子プロセスも確実に止め、終了コード 130 を返す。
 func runWithProgress(cmd *exec.Cmd, j *Job) int {
-	total := ScanDir(j.Src, j.AllExcludePatterns()).Bytes
+	total := j.SrcScan().Bytes
 	base := ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
 	start := time.Now()
 

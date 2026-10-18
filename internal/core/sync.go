@@ -46,6 +46,12 @@ type Job struct {
 
 	TotalFiles int // この Job でコピーした累計（成功時のみ加算）
 	TotalBytes int64
+
+	// srcScanCache はコピー元の走査結果のキャッシュ。コピー元はこの処理の間は
+	// 変化しないため、進捗の分母（runWithProgress）と照合の集計（VerifyOne）で
+	// 同じ木を何度も走査しないよう共有する。nil なら未走査。
+	// 同時アクセスは想定しない（各呼び出しは同じ goroutine から順に行う）。
+	srcScanCache *ScanResult
 }
 
 func (j *Job) log(msg string) {
@@ -85,6 +91,23 @@ func (j *Job) excludeArgs() []string {
 // AllExcludePatterns は走査に使う除外（転送時と同じもの）。
 func (j *Job) AllExcludePatterns() []string {
 	return append(append([]string{}, DefaultExcludes...), j.Excludes...)
+}
+
+// SrcScan はコピー元を走査した結果を返す。初回だけ実際に走査し、以降は
+// キャッシュを返す。コピー元は処理中に変化しない前提なので、進捗の分母と
+// 照合の集計で走査を共有でき、大きなツリーでの二重走査を避けられる。
+func (j *Job) SrcScan() ScanResult {
+	if j.srcScanCache == nil {
+		r := ScanDir(j.Src, j.AllExcludePatterns())
+		j.srcScanCache = &r
+	}
+	return *j.srcScanCache
+}
+
+// SetSrcScan は走査済みのコピー元の結果を設定し、再走査を省く。
+// TUI はプレビューで走査した結果を転送・照合の Job へ引き継ぐために使う。
+func (j *Job) SetSrcScan(r ScanResult) {
+	j.srcScanCache = &r
 }
 
 // ---------------------------------------------------------------------------

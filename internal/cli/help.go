@@ -49,7 +49,7 @@ const helpText = `safersync v%s - rsync の安全なラッパー（コピー →
       --fat            コピー先が exFAT/FAT（既定。属性差を比較しない）
       --apfs           コピー先が APFS/HFS+（属性も保持・比較する）
   -n, --dry-run        実際にはコピーせず、対象を確認する
-      --verify-only    コピーせず照合のみ行う
+      --verify-only    コピーせず照合のみ行う（--dry-run より優先される）
       --no-verify      コピー後の自動照合を行わない
   -c, --checksum       内容のハッシュで照合（厳密だが遅い）
       --ignore-space-check  空き容量が足りなくても中止せず続行する
@@ -62,7 +62,8 @@ const helpText = `safersync v%s - rsync の安全なラッパー（コピー →
   -V, --version        バージョン表示
 
 終了コード
-  0 成功 / 1 エラー / 2 コピー先が未マウント / 3 空き容量不足 / 130 中断
+  0 成功 / 1 エラー（引数の誤り・コピー元が無い・照合不一致など）
+  2 コピー先が未マウント / 3 空き容量不足（ほかに rsync 未検出・差分/照合の実行不可など） / 130 中断
 
 環境変数
   SAFERSYNC_MOUNT_ROOT  外付けボリュームの基点（--mount-root と同じ）

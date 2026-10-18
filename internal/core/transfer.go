@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -23,25 +22,21 @@ type Transfer struct {
 	Total int64 // src 全体のバイト数
 	Base  int64 // src/転送開始時点の dst のバイト数
 
-	start     time.Time
-	cmd       *exec.Cmd
-	startErr  error
-	scanOnce  sync.Once
-	scanTotal int64
-	scanBase  int64
+	start    time.Time
+	cmd      *exec.Cmd
+	startErr error
 
 	logFile string
 	log     *os.File
 }
 
 // StartTransfer は rsync を開始する（失敗時は startErr を返すので StartedOK で確認）。
+// 進捗の分母はコピー元の走査（Job.SrcScan のキャッシュ）を、基準値はこの時点の
+// 転送先の走査を使う。
 func (j *Job) StartTransfer() *Transfer {
 	t := &Transfer{Job: j, start: time.Now()}
-	t.scanOnce.Do(func() {
-		t.scanTotal = ScanDir(j.Src, j.AllExcludePatterns()).Bytes
-		t.scanBase = ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
-	})
-	t.Total, t.Base = t.scanTotal, t.scanBase
+	t.Total = j.SrcScan().Bytes
+	t.Base = ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
 	// 転送中ファイル名を拾うために rsync の出力を一時ファイルへ退避する
 	f, _ := os.CreateTemp("", "safersync-tui-*")
 	if f != nil {

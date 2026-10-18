@@ -60,7 +60,8 @@ func VerifyOne(j *Job) int {
 
 	// 集計は「参考情報」。転送先の余分なファイルは許容するため、
 	// 数が一致しなくても失敗にしない（合否判定は上の rsync 差分で行う）。
-	s := ScanDir(j.Src, j.AllExcludePatterns())
+	// コピー元は処理中に変化しないので、進捗表示と共有した走査結果を使う。
+	s := j.SrcScan()
 	d := ScanDir(j.Dst, j.AllExcludePatterns())
 	extra := d.Files - s.Files
 
@@ -85,6 +86,10 @@ func isDir(p string) bool {
 
 // RunJob は1件の処理（コピー → 照合）のオーケストレーション（bash 版 run_job）。
 // mode: "copy" | "verify"
+//
+// verifyOnly が真のときは照合のみを行い、dryRun は無視する（照合はコピーを
+// 伴わないため dry-run の意味がない）。bash 版 run_job と同じ優先順位で、
+// CLI は両方を受け取ってよい。
 func RunJob(j *Job, verifyOnly bool, dryRun bool, doVerify bool) int {
 	if verifyOnly {
 		return VerifyOne(j)

@@ -76,7 +76,7 @@ func startPlanCmd(m *model) tea.Cmd {
 			}
 		}()
 		plan := j.PlanChanges()
-		s := core.ScanDir(j.Src, j.AllExcludePatterns())
+		s := j.SrcScan()
 		close(done)
 		prog.Send(planReadyMsg{srcFiles: s.Files, srcBytes: s.Bytes, plan: plan})
 		return nil
@@ -97,6 +97,10 @@ func (m *model) beginTransfer() error {
 	// goroutine から model のフィールドを読むと Update とデータ競合になる。
 	// 完了判定に使う値は起動前にローカルへコピーしておく。
 	xferFiles := m.xferFiles
+
+	// プレビューで走査済みのコピー元を引き継ぎ、転送開始時の再走査を省く
+	// （大きなツリーほど効く）。srcScan はプレビュー（planReadyMsg）で必ず設定される。
+	job.SetSrcScan(m.srcScan)
 
 	t := job.StartTransfer()
 	if err := t.StartError(); err != nil {
@@ -143,6 +147,8 @@ func (m *model) beginTransfer() error {
 // startVerifyCmd は照合を背景実行し、出力を回収して送る。
 func startVerifyCmd(m *model) tea.Cmd {
 	job := m.job()
+	// プレビューで走査済みのコピー元を引き継ぎ、照合時の集計で再走査しない
+	job.SetSrcScan(m.srcScan)
 	ctx, cancel := context.WithCancel(context.Background())
 	m.scanCancel = cancel
 	job.Ctx = ctx

@@ -91,11 +91,21 @@ func Parse(argv []string) (*core.Options, error) {
 			opts.To = v
 		case a == "--exclude" || a == "-x":
 			v, _ := value(argv, &i)
+			if v == "" {
+				return nil, fmt.Errorf("--exclude にはパターンを指定してください")
+			}
 			opts.Excludes = append(opts.Excludes, v)
 		case strings.HasPrefix(a, "--exclude="):
-			opts.Excludes = append(opts.Excludes, strings.TrimPrefix(a, "--exclude="))
+			v := strings.TrimPrefix(a, "--exclude=")
+			if v == "" {
+				return nil, fmt.Errorf("--exclude にはパターンを指定してください")
+			}
+			opts.Excludes = append(opts.Excludes, v)
 		case a == "--mount-root":
 			v, _ := value(argv, &i)
+			if v == "" {
+				return nil, fmt.Errorf("--mount-root にはパスを指定してください")
+			}
 			opts.MountRoot = v
 		case a == "--job":
 			v1, ok1 := value(argv, &i)
@@ -105,7 +115,11 @@ func Parse(argv []string) (*core.Options, error) {
 			}
 			opts.Jobs = append(opts.Jobs, core.JobSpec{From: v1, To: v2})
 		case strings.HasPrefix(a, "--mount-root="):
-			opts.MountRoot = strings.TrimPrefix(a, "--mount-root=")
+			v := strings.TrimPrefix(a, "--mount-root=")
+			if v == "" {
+				return nil, fmt.Errorf("--mount-root にはパスを指定してください")
+			}
+			opts.MountRoot = v
 		case a == "--":
 			// 以降はすべて位置引数として扱う（bash 版と同じ）
 			i++

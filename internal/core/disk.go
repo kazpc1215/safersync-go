@@ -218,19 +218,61 @@ func Volumes(mountRoot string) []string {
 	return out
 }
 
-// DfHuman は df -h と同等の情報を得る（--status の表示用）。取得できなければ nil。
+// DfHuman は df -h と同等の情報を得る（--status の表示用）。取得できなければ空文字を返す。
+//
+// 列の位置を決め打ちしないのは、環境によって出力が変わるため:
+// デバイス名に空白が含まれれば列がずれ、GNU df は長いデバイス名を折り返して
+// Size 列だけを行末へ送ることがある。そこで「サイズらしい列が3つ並ぶ位置」を
+// 出力全体から探す（先頭が Size / Used / Avail になる）。
 func DfHuman(path string) (size, used, avail string) {
 	out, err := exec.Command("df", "-h", path).Output()
 	if err != nil {
 		return "", "", ""
 	}
-	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
-	if len(lines) < 2 {
-		return "", "", ""
+	return parseDfValues(string(out))
+}
+
+// parseDfValues は df -h の出力から Size / Used / Avail の3列を取り出す。
+func parseDfValues(out string) (size, used, avail string) {
+	f := strings.Fields(out)
+	for i := 0; i+2 < len(f); i++ {
+		if isDfSize(f[i]) && isDfSize(f[i+1]) && isDfSize(f[i+2]) {
+			return f[i], f[i+1], f[i+2]
+		}
 	}
-	f := strings.Fields(lines[1])
-	if len(f) < 4 {
-		return "", "", ""
+	return "", "", ""
+}
+
+// isDfSize は df のサイズ列らしい文字列かを返す（"1.8Ti" "512B" "0Bi" "1024" など）。
+// 単位は英字 1〜2 文字までに限り、ヘッダの "512-blocks" や "%iused" のような
+// 列、Use% の "79%" を除外する。
+func isDfSize(s string) bool {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
 	}
-	return f[1], f[2], f[3]
+	if i == 0 {
+		return false
+	}
+	if i < len(s) && s[i] == '.' {
+		i++
+		j := i
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i == j {
+			return false
+		}
+	}
+	unit := s[i:]
+	if len(unit) > 2 {
+		return false
+	}
+	for k := 0; k < len(unit); k++ {
+		c := unit[k]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+			return false
+		}
+	}
+	return true
 }
