@@ -18,7 +18,25 @@ func init() {
 		stWarn = lipgloss.NewStyle()
 		stErr = lipgloss.NewStyle()
 		stDim = lipgloss.NewStyle()
+		return
 	}
+	switch os.Getenv("SAFERSYNC_THEME") {
+	case "light":
+		stTitle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0"))
+		stCursor = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
+		stOk = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+		stWarn = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+		stErr = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+		stDim = lipgloss.NewStyle().Faint(true)
+	case "high-contrast":
+		stTitle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15"))
+		stCursor = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11"))
+		stOk = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
+		stWarn = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11"))
+		stErr = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9"))
+		stDim = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
+	}
+	// dark (default) はパッケージ変数の初期値を使用
 }
 
 // ---------------------------------------------------------------------------
