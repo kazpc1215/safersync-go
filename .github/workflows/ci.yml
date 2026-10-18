@@ -52,8 +52,11 @@ jobs:
         with:
           repository: kazpc1215/safersync
           path: bash
-      - name: bats と shellcheck を導入
-        run: brew install bats-core shellcheck
+      - name: bats と shellcheck を導入（bats を bash 5 で動かすため bash も入れる）
+        run: |
+          brew install bats-core shellcheck bash
+          bash --version | head -1
+          which bash
       - name: Go バイナリを差し替えて bats 実行（exFAT テストを含む）
         run: |
           rm -rf /tmp/ss-bats
