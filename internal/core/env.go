@@ -106,7 +106,7 @@ func cwd() string {
 //  1. $SAFERSYNC_LOG_DIR
 //  2. $XDG_STATE_HOME/safersync（macOS でも優先）
 //  3. macOS: ~/Library/Logs/safersync
-//  4. それ以外: ~/.local/share/safersync
+//  4. それ以外: $XDG_DATA_HOME/safersync（無ければ ~/.local/share/safersync）
 func LogDir() string {
 	if v := os.Getenv("SAFERSYNC_LOG_DIR"); v != "" {
 		return v
@@ -117,6 +117,9 @@ func LogDir() string {
 	if runtime.GOOS == "darwin" {
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, "Library", "Logs", "safersync")
+	}
+	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
+		return filepath.Join(v, "safersync")
 	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".local", "share", "safersync")

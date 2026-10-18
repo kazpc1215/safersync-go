@@ -265,3 +265,17 @@ func TestModel_terminateChildCancelsScan(t *testing.T) {
 	m2 := newModel("/tmp", "", "")
 	m2.terminateChild()
 }
+
+// 履歴の保存先は XDG_STATE_HOME があればそれに従う
+func TestHistoryPathXDG(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", "/tmp/ss-state")
+	t.Setenv("HOME", "/tmp/ss-home")
+
+	if got := historyPath(); got != "/tmp/ss-state/safersync/tui.json" {
+		t.Errorf("XDG_STATE_HOME を使うはず: %q", got)
+	}
+	t.Setenv("XDG_STATE_HOME", "")
+	if got := historyPath(); got != "/tmp/ss-home/.local/state/safersync/tui.json" {
+		t.Errorf("既定は ~/.local/state のはず: %q", got)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -14,6 +15,37 @@ func TestJobAllPatterns(t *testing.T) {
 	pats := j.AllExcludePatterns()
 	if len(pats) < len(DefaultExcludes)+2 {
 		t.Fatalf("exclude patterns が不足: %v", pats)
+	}
+}
+
+// ログの場所は bash 版 env.sh と同じ優先順位で決めること:
+// SAFERSYNC_LOG_DIR > XDG_STATE_HOME > (macOS: ~/Library/Logs) > XDG_DATA_HOME > ~/.local/share
+func TestLogDirPrecedence(t *testing.T) {
+	t.Setenv("SAFERSYNC_LOG_DIR", "/tmp/ss-log")
+	t.Setenv("XDG_STATE_HOME", "/tmp/ss-state")
+	t.Setenv("XDG_DATA_HOME", "/tmp/ss-data")
+	t.Setenv("HOME", "/tmp/ss-home")
+
+	if got := LogDir(); got != "/tmp/ss-log" {
+		t.Errorf("SAFERSYNC_LOG_DIR が最優先のはず: %q", got)
+	}
+	t.Setenv("SAFERSYNC_LOG_DIR", "")
+	if got := LogDir(); got != "/tmp/ss-state/safersync" {
+		t.Errorf("XDG_STATE_HOME が2番目のはず: %q", got)
+	}
+	t.Setenv("XDG_STATE_HOME", "")
+	if runtime.GOOS == "darwin" {
+		if got := LogDir(); got != "/tmp/ss-home/Library/Logs/safersync" {
+			t.Errorf("macOS は ~/Library/Logs が既定のはず: %q", got)
+		}
+		return
+	}
+	if got := LogDir(); got != "/tmp/ss-data/safersync" {
+		t.Errorf("XDG_DATA_HOME を使うはず: %q", got)
+	}
+	t.Setenv("XDG_DATA_HOME", "")
+	if got := LogDir(); got != "/tmp/ss-home/.local/share/safersync" {
+		t.Errorf("既定は ~/.local/share のはず: %q", got)
 	}
 }
 

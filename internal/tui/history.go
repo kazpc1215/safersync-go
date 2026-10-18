@@ -11,7 +11,11 @@ type tuiHistory struct {
 	Dst string `json:"dst"`
 }
 
+// historyPath は前回使ったパスの保存先。XDG_STATE_HOME があればそれに従う。
 func historyPath() string {
+	if v := os.Getenv("XDG_STATE_HOME"); v != "" {
+		return filepath.Join(v, "safersync", "tui.json")
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".local", "state", "safersync", "tui.json")
 }
