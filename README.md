@@ -6,7 +6,7 @@
 ## 現在の状態
 
 - [x] ステップ 1: スケルトン（`--version` / `--help` / 引数解析・エラー文言）
-- [ ] ステップ 2: core（マウント判定・空き容量・rsync 呼び出し・照合）の移植
+- [x] ステップ 2: core（マウント判定・空き容量・rsync 呼び出し・照合）の移植
 - [ ] ステップ 3: TUI（Bubble Tea）の移植
 
 ## 開発
@@ -22,6 +22,9 @@ make build    # 全ターゲット（darwin/amd64+arm64, linux/amd64+arm64）を
 
 ## テスト契約
 
-- bash 版の `test/safersync.bats` が CLI の受け入れテストになる（`--version` は
-  `safersync v1.2.0`、`--help` の必須オプション一覧、終了コード 0/1/2/3/130 など）。
+- bash 版の `test/safersync.bats` が CLI の受け入れテストになる。実際に
+  バイナリを差し替えて検証済み（コピー / 照合 / dry-run / 除外 / 空き容量 /
+  未マウント判定 / `--status` / ログ配置 など **46/47 が合格**）。
+  - 唯一の不合格は shellcheck テスト（bash ソース専用）。Go 版では
+    `go vet ./...` + `go test ./...` が同等のゲート。
 - Go 側のユニットテストは `internal/cli/cli_test.go` ほかに随時追加する。

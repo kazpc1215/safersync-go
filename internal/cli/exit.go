@@ -1,12 +1,12 @@
-// Package cli はコマンドラインの引数解析・ふるまいを担う。
-// bash 版 bin/safersync と同じ出力文言・終了コードを保つ。
 package cli
 
-// 終了コード（bash 版と同じ）
+// 終了コード（core パッケージに定義。bash 版と同じ）
+import "github.com/kazpc1215/safersync/internal/core"
+
 const (
-	ExitOK          = 0   // 成功
-	ExitError       = 1   // エラー（引数の誤り、rsync の失敗など）
-	ExitUnmounted   = 2   // コピー先のボリュームが未マウント
-	ExitNoSpace     = 3   // 空き容量が足りない
-	ExitInterrupted = 130 // Ctrl-C で中断
+	ExitOK          = core.ExitOK
+	ExitError       = core.ExitError
+	ExitUnmounted   = core.ExitUnmounted
+	ExitNoSpace     = core.ExitNoSpace
+	ExitInterrupted = core.ExitInterrupted
 )

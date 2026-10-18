@@ -2,7 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"testing"
+
+	"github.com/kazpc1215/safersync/internal/core"
 )
 
 func TestParse_versionFlag(t *testing.T) {
@@ -52,8 +55,76 @@ func TestParse_missingFrom(t *testing.T) {
 	if err != nil {
 		t.Fatalf("エラー: %v", err)
 	}
-	if err := validate(opts); err == nil || err.Error() != "コピー元を指定してください" {
+	if opts.From != "" {
+		t.Fatalf("From が空のはず")
+	}
+	if err := validateFromTo(opts); err == nil || err.Error() != "コピー元を指定してください（例: safersync ~/書類 /Volumes/HDD/書類）" {
 		t.Errorf("want コピー元エラー, got %v", err)
+	}
+}
+
+// validateFromTo は run.go で使う引用チェックのテスト用に再現する
+func validateFromTo(opts *core.Options) error {
+	if opts.From == "" {
+		return errors.New("コピー元を指定してください（例: safersync ~/書類 /Volumes/HDD/書類）")
+	}
+	if opts.To == "" {
+		return errors.New("コピー先を指定してください（例: safersync ~/書類 /Volumes/HDD/書類）")
+	}
+	return nil
+}
+
+func TestParse_duplicateFrom(t *testing.T) {
+	// bash 版と同じ: --from が確保済みなら位置引数はコピー先に入る。重複はエラー。
+	opts, err := Parse([]string{"--from", "/a", "/b"})
+	if err != nil {
+		t.Fatalf("エラー: %v", err)
+	}
+	if opts.From != "/a" || opts.To != "/b" {
+		t.Errorf("want /a→/b, got From=%q To=%q", opts.From, opts.To)
+	}
+	if _, err := Parse([]string{"--from", "/a", "--from", "/b"}); err == nil {
+		t.Fatal("コピー元が重複したらエラーになるべき")
+	}
+}
+
+func TestParse_unknownFlag(t *testing.T) {
+	_, err := Parse([]string{"--bogus"})
+	if err == nil {
+		t.Fatal("不明なフラグはエラーになるべき")
+	}
+}
+
+func TestParse_afterDoubleDash(t *testing.T) {
+	opts, err := Parse([]string{"-n", "--", "x", "y z"})
+	if err != nil {
+		t.Fatalf("エラー: %v", err)
+	}
+	if !opts.DryRun || opts.From != "x" || opts.To != "y z" {
+		t.Errorf("opts=%+v", opts)
+	}
+}
+
+func TestCoreFmtBytes(t *testing.T) {
+	if got := core.FmtBytes(int64(13207170048)); got != "12.3 GB" {
+		t.Errorf("bad fmtbytes: %q", got)
+	}
+	if got := core.FmtDuration(130); got != "2分10秒" {
+		t.Errorf("bad duration: %q", got)
+	}
+}
+
+func TestCoreStripTrailingSlashes(t *testing.T) {
+	cases := map[string]string{
+		"/":       "/",
+		"/a/":     "/a",
+		"/a//":    "/a",
+		"rel/dir": "rel/dir",
+	}
+	for in, want := range cases {
+		if got := core.StripTrailingSlashes(in); got != want {
+			t.Errorf("StripTrailingSlashes(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 

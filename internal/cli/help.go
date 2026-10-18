@@ -60,11 +60,11 @@ const helpText = `safersync v%s - rsync の安全なラッパー（コピー →
 
 環境変数
   SAFERSYNC_MOUNT_ROOT  外付けボリュームの基点（--mount-root と同じ）
-  SAFERSYNC_LOG_DIR     ログの場所
-  （ログ: /Users/kisoya/Library/Logs/safersync/safersync.log）
+  SAFERSYNC_LOG_DIR     ログの場所（既定: macOS は ~/Library/Logs/safersync）
+
+ログ: %s
 `
 
-func printHelp(w io.Writer) {
-	// ログの行は環境で差し替えられる（現段階では決め打ち）
-	fmt.Fprintf(w, helpText, version.Version)
+func printHelp(w io.Writer, logFile string) {
+	fmt.Fprintf(w, helpText, version.Version, logFile)
 }
