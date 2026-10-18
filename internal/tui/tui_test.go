@@ -149,6 +149,42 @@ func TestModel_sourceFlow(t *testing.T) {
 	}
 }
 
+func TestModel_browseCursorMoves(t *testing.T) {
+	// フォルダ選択画面で ↑/↓ でカーソルが動くこと（回帰: m.items を参照して動かなかった）
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, "vol", "DCIM"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(tmp, "vols")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := newModel(root, "", "")
+	m = stepKey(m, enter()) // 先頭 "/"（内蔵）を Enter
+	if m.stage != stSourceDir {
+		t.Fatalf("ステージがフォルダ選択に遷移しない: %d", m.stage)
+	}
+	n := len(browseEntries(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate))
+	if n < 4 {
+		t.Fatalf("フォルダ選択の項目が足りない: %d", n)
+	}
+	if m.sel != 0 {
+		t.Fatalf("初期カーソルは0のはず: %d", m.sel)
+	}
+	m = stepKey(m, down())
+	if m.sel != 1 {
+		t.Errorf("↓ でカーソルが動かない: sel=%d", m.sel)
+	}
+	m = stepKey(m, key("j"))
+	if m.sel != 2 {
+		t.Errorf("j でカーソルが動かない: sel=%d", m.sel)
+	}
+	m = stepKey(m, up())
+	if m.sel != 1 {
+		t.Errorf("↑ でカーソルが動かない: sel=%d", m.sel)
+	}
+}
+
 func TestModel_destCreateAndOptionToggle(t *testing.T) {
 	tmp := t.TempDir()
 	root := filepath.Join(tmp, "vols")

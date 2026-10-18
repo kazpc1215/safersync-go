@@ -387,7 +387,7 @@ func (m model) volumeCandidates() []volumeItem {
 }
 
 func (m *model) updateBrowse(key string) (tea.Model, tea.Cmd) {
-	n := len(m.items)
+	n := len(browseEntries(m.browseDir, m.browseRoot, m.pickLabel, m.pickCreate))
 	switch key {
 	case "up", "k":
 		m.sel = mod(m.sel-1, n)
