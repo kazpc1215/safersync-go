@@ -28,6 +28,7 @@ jobs:
           fi
       - run: go vet ./...
       - name: staticcheck（未使用コード・バグ検出）
+        # ピンは再現性のため固定。v0.8.2 = 2026.2.2 が現時点の最新リリース。
         run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
       - name: テスト（race + カバレッジ）
         run: |
