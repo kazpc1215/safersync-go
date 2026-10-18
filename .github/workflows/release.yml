@@ -12,6 +12,8 @@ jobs:
     runs-on: macos-latest # shasum を使うため。darwin/linux のクロスコンパイルはどの OS でも可能
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # formula を main へ同期するため main を取得する
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -34,3 +36,29 @@ jobs:
             dist/release/SHA256SUMS
             packaging/homebrew/safersync.rb
           generate_release_notes: true
+      # リポジトリの formula を常に最新リリースと一致させる。
+      # （GITHUB_TOKEN が起こした release イベントでは別ワークフローが起動しないため、
+      #   ここで直接 main へコミットする。この push で CI は走らないが、対象は
+      #   formula（データ）のみで、実物の sha256 は上のステップで検証済み。）
+      - name: Homebrew formula を main へ同期
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          git checkout -- packaging/homebrew/safersync.rb
+          git fetch origin main
+          git checkout -B main origin/main
+          # 古いタグの再リリースで巻き戻さない
+          cur=$(grep -m1 'version "' packaging/homebrew/safersync.rb | sed -E 's/.*version "([^"]+)".*/\1/')
+          if [ "$(printf '%s\n%s\n' "$cur" "$TAG" | sort -V | tail -1)" != "$TAG" ]; then
+            echo "tag v$TAG は formula の v$cur より古いため同期をスキップします"
+            exit 0
+          fi
+          sh packaging/homebrew/update-formula.sh dist/release/SHA256SUMS "$TAG"
+          if git diff --quiet -- packaging/homebrew/safersync.rb; then
+            echo "formula は最新です（変更なし）"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packaging/homebrew/safersync.rb
+          git commit -m "chore: sync Homebrew formula with ${GITHUB_REF_NAME}"
+          git push origin main
