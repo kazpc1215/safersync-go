@@ -5,6 +5,7 @@ package tui
 
 import (
 	"bytes"
+	"context"
 	"os/exec"
 	"strconv"
 	"time"
@@ -52,9 +53,14 @@ func (m model) footerOf() string {
 }
 
 // startPlanCmd は差分スキャン（プレビュー用）を背景で行う。
+// Ctrl-C でスキャン中の rsync を止められるよう、キャンセル可能にしておく。
 func startPlanCmd(m *model) tea.Cmd {
+	j := m.job()
+	ctx, cancel := context.WithCancel(context.Background())
+	m.scanCancel = cancel
+	j.Ctx = ctx
+
 	return func() tea.Msg {
-		j := m.job()
 		prog := m.prog
 		done := make(chan struct{})
 		go func() {
@@ -133,8 +139,12 @@ func (m *model) beginTransfer() error {
 
 // startVerifyCmd は照合を背景実行し、出力を回収して送る。
 func startVerifyCmd(m *model) tea.Cmd {
+	job := m.job()
+	ctx, cancel := context.WithCancel(context.Background())
+	m.scanCancel = cancel
+	job.Ctx = ctx
+
 	return func() tea.Msg {
-		job := m.job()
 		prog := m.prog
 		done := make(chan struct{})
 		go func() {

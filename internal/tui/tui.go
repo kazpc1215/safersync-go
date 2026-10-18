@@ -29,6 +29,7 @@ func (m *model) finalRCWithInterrupt() int {
 // 子プロセスは別プロセスグループで動くため、これをしないと rsync が孤児として
 // コピーを続けてしまう。
 func (m *model) terminateChild() {
+	m.cancelScan() // スキャン/照合中の dry-run rsync も止める
 	if m.transfer != nil {
 		m.transfer.Terminate(2 * time.Second)
 	}

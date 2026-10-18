@@ -3,6 +3,7 @@ package tui
 // model.go - TUI の状態機械（bash 版 app.sh の stage 遷移と同じ）
 
 import (
+	"context"
 	"os"
 	"strings"
 	"time"
@@ -113,9 +114,10 @@ type model struct {
 	interrupt bool
 
 	// 実行中
-	transfer *core.Transfer
-	verifyAt time.Time
-	startAt  time.Time
+	transfer   *core.Transfer
+	scanCancel context.CancelFunc // 差分スキャン/照合の中断用（Ctrl-C・終了時）
+	verifyAt   time.Time
+	startAt    time.Time
 
 	// UI
 	spinner        int
@@ -425,12 +427,21 @@ func (m *model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// cancelScan は実行中の差分スキャン/照合（rsync の dry-run）を止める。
+// 完了済みのキャンセルは無害（no-op）。
+func (m *model) cancelScan() {
+	if m.scanCancel != nil {
+		m.scanCancel()
+	}
+}
+
 // interruptAndQuit は転送中の rsync も止めて、130（中断）でウィザードを終了する。
 // Ctrl-C の2回目と、外部シグナル（SIGTERM/SIGHUP）の両方から使う。
 func (m *model) interruptAndQuit() tea.Cmd {
 	if m.transfer != nil && m.transfer.StartedOK() {
 		m.transfer.Interrupt()
 	}
+	m.cancelScan() // 差分スキャン/照合中の dry-run も止める
 	m.finalRC = core.ExitInterrupted
 	m.interrupt = true
 	return tea.Quit

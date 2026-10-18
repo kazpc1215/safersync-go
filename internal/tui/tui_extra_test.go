@@ -230,3 +230,38 @@ func TestOptionsView_promptVisible(t *testing.T) {
 		t.Errorf("入力中の文字が描画されていない:\n%s", v)
 	}
 }
+
+// 差分スキャン/照合中の Ctrl-C（2回目）で、実行中のスキャンも止めること
+func TestModel_interruptCancelsScan(t *testing.T) {
+	m := newModel("/tmp", "", "")
+	m.width, m.height = 80, 24
+	m.stage = stPlanBusy
+	canceled := false
+	m.scanCancel = func() { canceled = true }
+
+	m2 := stepKey(m, tea.KeyMsg{Type: tea.KeyCtrlC}) // 1回目: 確認状態
+	if canceled {
+		t.Fatal("1回目の Ctrl-C でスキャンがキャンセルされてしまった")
+	}
+	m3 := stepKey(m2, tea.KeyMsg{Type: tea.KeyCtrlC}) // 2回目: 中断
+	if !canceled {
+		t.Error("中断時に実行中のスキャンがキャンセルされない")
+	}
+	if !m3.interrupt || m3.finalRC != core.ExitInterrupted {
+		t.Errorf("中断状態にならない: interrupt=%v finalRC=%d", m3.interrupt, m3.finalRC)
+	}
+}
+
+// 終了時の保険（terminateChild）でもスキャンを止めること
+func TestModel_terminateChildCancelsScan(t *testing.T) {
+	m := newModel("/tmp", "", "")
+	canceled := false
+	m.scanCancel = func() { canceled = true }
+	m.terminateChild()
+	if !canceled {
+		t.Error("終了時にスキャンがキャンセルされない")
+	}
+	// スキャンが無い場合は panic しない
+	m2 := newModel("/tmp", "", "")
+	m2.terminateChild()
+}

@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +14,26 @@ func TestJobAllPatterns(t *testing.T) {
 	pats := j.AllExcludePatterns()
 	if len(pats) < len(DefaultExcludes)+2 {
 		t.Fatalf("exclude patterns が不足: %v", pats)
+	}
+}
+
+// スキャン中の割り込み: Ctx がキャンセルされていたら dry-run を実行せず、
+// context のエラー（context.Canceled）として返すこと。
+func TestCollectDiffContextCancel(t *testing.T) {
+	if !RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	j := &Job{Src: t.TempDir(), Dst: t.TempDir(), FAT: true, Ctx: ctx}
+	_, err := j.CollectDiff("%i %n")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("キャンセル時のエラーが context.Canceled でない: %v", err)
+	}
+	// PlanChanges / VerifyOne もエラーとして扱い、成功扱いにならないこと
+	if plan := j.PlanChanges(); plan.Err == nil {
+		t.Error("キャンセル時に PlanChanges がエラーを返さない（差分なしと誤判定する）")
 	}
 }
 

@@ -3,6 +3,7 @@ package core
 // sync.go - rsync 実行・差分収集・除外制御（bash 版 lib/core/sync.sh の Go 移植）
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -38,6 +39,10 @@ type Job struct {
 	Log func(msg string) // ログ hook（nil 可。core.LogMsg を渡す）
 	Out io.Writer        // 通常出力（stdout）
 	Err io.Writer        // 警告・エラー（stderr、tty 判定は CLI 側で）
+
+	// Ctx は差分・照合用の rsync をキャンセル可能にする（TUI の Ctrl-C 用）。
+	// nil のときは従来どおり実行する。
+	Ctx context.Context
 
 	TotalFiles int // この Job でコピーした累計（成功時のみ加算）
 	TotalBytes int64
@@ -98,6 +103,15 @@ func RsyncAvailable() bool {
 // 撮影中の SD カードなどでは dry-run でも起こり得るため、これは成功扱いにする。
 const rsyncExitVanished = 24
 
+// newDiffCmd は dry-run 用の rsync コマンドを作る。j.Ctx があればキャンセル対応
+// （TUI の Ctrl-C でスキャン中の rsync を止める）。
+func newDiffCmd(j *Job, args []string) *exec.Cmd {
+	if j.Ctx != nil {
+		return exec.CommandContext(j.Ctx, "rsync", args...)
+	}
+	return exec.Command("rsync", args...)
+}
+
 // CollectDiff は rsync の dry-run を行い、--out-format の結果を返す（空なら差分なし）。
 // rsync を実行できないとき（未インストール・リモートへ到達不能など）はエラーを返す。
 // 「差分なし」と「確認できなかった」を取り違えると、照合 OK の誤報告につながる。
@@ -109,8 +123,12 @@ func (j *Job) CollectDiff(outFormat string) (string, error) {
 		args = append(args, "--checksum")
 	}
 	args = append(args, j.Src+"/", j.Dst+"/")
-	out, err := exec.Command("rsync", args...).Output()
+	out, err := newDiffCmd(j, args).Output()
 	if err != nil {
+		// 中断（TUI の Ctrl-C など）はエラー表示せず、そのまま呼び出し側に伝える
+		if j.Ctx != nil && j.Ctx.Err() != nil {
+			return string(out), j.Ctx.Err()
+		}
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			if ee.ExitCode() == rsyncExitVanished {
