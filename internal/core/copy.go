@@ -239,9 +239,13 @@ func (j *Job) rsyncArgs() []string {
 	}
 	args = append(args, j.excludeArgs()...)
 	args = append(args, j.Src+"/", j.Dst+"/")
-	if j.Verbose {
+	switch {
+	case j.Verbose:
 		args = append(args, "--stats")
-	} else {
+	case j.ListFiles:
+		// -q は --out-format の出力（TUI のファイル名表示）も抑制してしまうため、
+		// ファイル名を出すときは付けない（エラーは stderr に出る）。
+	default:
 		args = append(args, "-q")
 	}
 	return args

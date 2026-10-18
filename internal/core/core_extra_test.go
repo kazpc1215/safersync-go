@@ -21,10 +21,17 @@ func TestRsyncArgsListFiles(t *testing.T) {
 	if !contains(args, "--out-format=%n") {
 		t.Errorf("--out-format が付いていない: %v", args)
 	}
+	// -q は --out-format の出力（TUI のファイル名表示）を抑制してしまうため、併用しないこと
+	if contains(args, "-q") {
+		t.Errorf("ListFiles 時に -q が付いている（ファイル名が出ない）: %v", args)
+	}
 	j2 := &Job{Src: "/tmp/src", Dst: "/tmp/dst", FAT: true, ListFiles: false}
 	args2 := j2.rsyncArgs()
 	if contains(args2, "--out-format=%n") {
 		t.Errorf("ListFiles=false なのに --out-format が付いている: %v", args2)
+	}
+	if !contains(args2, "-q") {
+		t.Errorf("通常実行で -q が付いていない: %v", args2)
 	}
 }
 
