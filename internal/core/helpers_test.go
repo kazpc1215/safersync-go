@@ -264,6 +264,58 @@ func TestDfHuman(t *testing.T) {
 	}
 }
 
+// df -h の列位置は環境で変わる（デバイス名の空白・折り返し）。位置決め打ちを
+// せず、サイズらしい列を探す実装になっていることを確かめる。
+func TestParseDfValues(t *testing.T) {
+	cases := []struct {
+		name              string
+		out               string
+		size, used, avail string
+	}{
+		{
+			name: "macOS",
+			out:  "Filesystem Size Used Avail Capacity iused ifree %iused Mounted on\n/dev/disk1s1s1 1.8Ti 466Gi 112Mi 79% 12345 6789 1% /\n",
+			size: "1.8Ti", used: "466Gi", avail: "112Mi",
+		},
+		{
+			name: "GNU df の長いデバイス名で折り返し",
+			out:  "Filesystem Size Used Avail Use% Mounted on\n/dev/mapper/really-long-device-name\n 100G 50G 40G 56% /mnt/data\n",
+			size: "100G", used: "50G", avail: "40G",
+		},
+		{
+			name: "デバイス名に空白",
+			out:  "Filesystem Size Used Avail Capacity Mounted on\n//nas/My Share 2.0Ti 1.0Ti 1.0Ti 50% /Volumes/My Share\n",
+			size: "2.0Ti", used: "1.0Ti", avail: "1.0Ti",
+		},
+		{name: "ヘッダのみ", out: "Filesystem Size Used Avail Use% Mounted on\n"},
+		{name: "空", out: ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			size, used, avail := parseDfValues(c.out)
+			if size != c.size || used != c.used || avail != c.avail {
+				t.Errorf("parseDfValues = (%q,%q,%q), want (%q,%q,%q)",
+					size, used, avail, c.size, c.used, c.avail)
+			}
+		})
+	}
+}
+
+func TestIsDfSize(t *testing.T) {
+	yes := []string{"1.8Ti", "512B", "1024", "0Bi", "1.5", "40G"}
+	no := []string{"79%", "512-blocks", "%iused", "Filesystem", "1.", "", "Gi", "1.5TiB", "-1G"}
+	for _, s := range yes {
+		if !isDfSize(s) {
+			t.Errorf("isDfSize(%q) = false, want true", s)
+		}
+	}
+	for _, s := range no {
+		if isDfSize(s) {
+			t.Errorf("isDfSize(%q) = true, want false", s)
+		}
+	}
+}
+
 func TestTotalBytes(t *testing.T) {
 	if got := TotalBytes(t.TempDir()); got <= 0 {
 		t.Errorf("TotalBytes = %d, want > 0", got)

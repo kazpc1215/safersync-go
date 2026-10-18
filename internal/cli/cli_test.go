@@ -381,3 +381,58 @@ func TestDoStatus(t *testing.T) {
 		}
 	}
 }
+
+// 値が必要なオプションに値が無いときは、黙殺せずエラーにすること。
+// （--from / --to はエラー、--exclude / --mount-root は無視、という不揃いを解消）
+func TestParse_missingOptionValue(t *testing.T) {
+	cases := []struct {
+		name string
+		argv []string
+		want string
+	}{
+		{"--exclude 値なし", []string{"--exclude"}, "--exclude"},
+		{"-x 値なし", []string{"-x"}, "--exclude"},
+		{"--exclude= が空", []string{"--exclude="}, "--exclude"},
+		{"--mount-root 値なし", []string{"--mount-root"}, "--mount-root"},
+		{"--mount-root= が空", []string{"--mount-root="}, "--mount-root"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := Parse(c.argv)
+			if err == nil {
+				t.Fatalf("エラーになるはず: %v", c.argv)
+			}
+			if !strings.Contains(err.Error(), c.want) {
+				t.Errorf("エラーに %q が含まれない: %v", c.want, err)
+			}
+		})
+	}
+	// 値があれば従来どおり通ること
+	if _, err := Parse([]string{"--exclude", "*.tmp", "--mount-root", "/mnt"}); err != nil {
+		t.Errorf("値ありは通るはず: %v", err)
+	}
+}
+
+// --help の終了コード表は bash 版の BATS（部分文字列 "2 コピー先が未マウント" /
+// "3 空き容量不足"）と契約を共有する。文言を変えると気づけるように固定しておく。
+func TestHelp_exitCodeContract(t *testing.T) {
+	var buf bytes.Buffer
+	printHelp(&buf, "/tmp/safersync.log")
+	out := buf.String()
+	for _, want := range []string{
+		"終了コード",
+		"1 エラー",
+		"2 コピー先が未マウント",
+		"3 空き容量不足",
+		"130 中断",
+		"--verify-only",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("--help に %q が無い", want)
+		}
+	}
+	// --verify-only は --dry-run との優先関係が分かるようにしておく
+	if !strings.Contains(out, "--dry-run より優先") {
+		t.Errorf("--help に --verify-only の優先関係の説明が無い")
+	}
+}
