@@ -10,12 +10,16 @@ TARGETS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
 # バージョンはリリースビルド時に上書きできる。
 LDFLAGS := -s -w -X github.com/kazpc1215/safersync/internal/version.Version=$(VERSION)
 
-.PHONY: build test vet fmt clean install release $(TARGETS)
+.PHONY: build test cover vet fmt clean install release $(TARGETS)
 
 build: $(TARGETS) ## 全ターゲットを dist/ へビルド
 
 test: ## ユニットテスト
 	go test ./...
+
+cover: ## カバレッジ計測（合計のみ表示。coverage.out に詳細）
+	go test -count=1 -covermode=atomic -coverprofile=coverage.out ./...
+	@go tool cover -func=coverage.out | tail -1
 
 vet:
 	go vet ./...

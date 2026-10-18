@@ -1,3 +1,4 @@
 /dist/
 /safersync*
 *.log
+/coverage.out

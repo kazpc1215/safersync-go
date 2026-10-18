@@ -27,7 +27,12 @@ jobs:
             exit 1
           fi
       - run: go vet ./...
-      - run: go test -count=1 ./...
+      - name: staticcheck（未使用コード・バグ検出）
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+      - name: テスト（race + カバレッジ）
+        run: |
+          go test -count=1 -race -covermode=atomic -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out | tail -1
       - name: ビルドと動作確認（単一バイナリ）
         run: |
           go build -trimpath -ldflags "-s -w" -o safersync .
