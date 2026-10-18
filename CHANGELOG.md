@@ -5,6 +5,27 @@
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-19
+
+### 追加
+
+- TUI のテスト網羅率を 42.6% → 74.1% に向上（ステージ遷移・フォルダ作成・履歴・ボリューム表示・
+  マウス・ヘルパ・引数/終了コード契約・`DfHuman`・走査キャッシュ等）
+
+### 変更
+
+- `--exclude` / `--mount-root` の値が無い・空の場合も `--from`/`--to` と同様にエラーにする（黙殺しない）
+- `--help` の終了コード表を実装（`ExitEnv`）に合わせた
+- `DfHuman` の列位置決め打ちを廃止し、デバイス名の空白・GNU df の折り返しにも対応
+- コピー元の走査結果をキャッシュし、進捗の分母と照合の集計で同じ木を何度も走査しない
+- 転送進捗の走査を非同期化し、大きなツリーでも UI/シグナル処理をブロックしない
+- `--verify-only` が `--dry-run` と併用された場合は照合を優先することを help に明記
+
+### 修正
+
+- Makefile の `make help` が `.PHONY` 等を表示しないようにした
+- staticcheck のピン（v0.8.2）が現行リリースであることをコメントで明記
+
 ## [1.4.1] - 2026-10-19
 
 ### 変更
@@ -25,5 +46,6 @@
 個々の変更はリリースノートと git 履歴を参照してください:
 <https://github.com/kazpc1215/safersync-go/releases>
 
-[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/kazpc1215/safersync-go/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/kazpc1215/safersync-go/compare/v1.4.0...v1.4.1
