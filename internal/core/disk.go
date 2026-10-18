@@ -150,7 +150,9 @@ func ScanDir(dir string, excludes []string) ScanResult {
 			}
 		}
 		if !d.IsDir() {
-			if info, err := d.Info(); err == nil {
+			// bash 版の find -type f と同じく通常ファイルだけを数える
+			// （シンボリックリンク・FIFO・デバイスファイルなどは含めない）
+			if info, err := d.Info(); err == nil && info.Mode().IsRegular() {
 				res.Files++
 				res.Bytes += info.Size()
 			}
