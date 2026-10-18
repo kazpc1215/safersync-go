@@ -95,13 +95,17 @@ func (m model) View() string {
 		}
 	case stSourceDir, stDestDir:
 		if m.prompting {
-			return frame(w, title, "",
-				[]string{
-					"",
-					"  " + m.promptLbl,
-					"",
-					"  > " + m.prompt + "_",
-				}, " [Enter] 決定   [Esc] キャンセル")
+			body := []string{
+				"",
+				"  現在のフォルダ: " + m.browseDir,
+			}
+			parts := strings.Split(strings.Trim(m.browseDir, "/"), "/")
+			if m.browseDir == "/" {
+				parts = []string{"/"}
+			}
+			body = append(body, "  パンくず: / "+strings.Join(parts, " / "))
+			body = append(body, "", "  "+m.promptLbl, "", "  > "+m.prompt+"_")
+			return frame(w, title, "", body, " [Enter] 決定   [Esc] キャンセル")
 		}
 		body = append(body, " 現在のフォルダ: "+m.browseDir)
 		// パンくず表示
@@ -145,7 +149,7 @@ func (m model) View() string {
 		if start+visible < len(entries) {
 			body = append(body, "  ↓ "+itoa(len(entries)-start-visible)+" 件省略")
 		}
-		footer = "[↑/↓] 移動   [Enter] 選択   [/] 検索   [h] 隠し表示切替   [Esc] 戻る"
+		footer = "[↑/↓] 移動   [Enter] 選択   [n] 新規フォルダ   [p] パス入力   [/] 検索   [h] 隠し   [Esc] 戻る"
 	case stOptions:
 		for i := 0; i < 5; i++ {
 			body = append(body, " "+cursor(i == m.sel)+" "+m.optionLine(i))

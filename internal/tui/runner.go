@@ -40,7 +40,7 @@ func (m model) footerOf() string {
 	case stSource:
 		return "[↑/↓] 移動   [Enter] 選択   [q] 終了"
 	case stSourceDir, stDestDir:
-		return "[↑/↓] 移動   [Enter] 選択   [/] 検索   [h] 隠し表示切替   [Esc] 戻る"
+		return "[↑/↓] 移動   [Enter] 選択   [n] 新規フォルダ   [p] パス入力   [/] 検索   [h] 隠し   [Esc] 戻る"
 	case stOptions:
 		return "[↑/↓] 移動   [Space] 切り替え   [Enter] 次へ   [Esc] 戻る"
 	case stPreview:
