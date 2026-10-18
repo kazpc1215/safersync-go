@@ -191,8 +191,32 @@ func (m model) View() string {
 			}
 			break
 		}
-		for _, l := range m.previewHeaderLines() {
-			body = append(body, l)
+		tabs := []string{"概要", "転送対象", "スキップ/その他"}
+		body = append(body, " [Tab] "+tabs[m.previewTab]+"（0:"+tabs[0]+" 1:"+tabs[1]+" 2:"+tabs[2]+"）")
+		switch m.previewTab {
+		case 1:
+			lines := m.plan.Transfer
+			if len(lines) == 0 {
+				body = append(body, "  （転送対象はありません）")
+			} else {
+				for _, l := range lines {
+					body = append(body, "  "+l)
+				}
+			}
+		case 2:
+			lines := append([]string{}, m.plan.Skipped...)
+			lines = append(lines, m.plan.Other...)
+			if len(lines) == 0 {
+				body = append(body, "  （スキップ/その他の差分はありません）")
+			} else {
+				for _, l := range lines {
+					body = append(body, "  "+l)
+				}
+			}
+		default:
+			for _, l := range m.previewHeaderLines() {
+				body = append(body, l)
+			}
 		}
 		for i, item := range m.items {
 			body = append(body, " "+cursor(i == m.sel)+" "+item)

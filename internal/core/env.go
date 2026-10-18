@@ -68,6 +68,18 @@ func ExpandTilde(p string) string {
 	return p
 }
 
+// IsRemote は rsync のリモートパス（host:path / user@host:path / rsync://）かどうかを返す。
+func IsRemote(p string) bool {
+	if strings.HasPrefix(p, "rsync://") {
+		return true
+	}
+	idx := strings.IndexAny(p, "/\\")
+	if idx < 0 {
+		idx = len(p)
+	}
+	return strings.Contains(p[:idx], ":")
+}
+
 // AbsPath はパスをカレントディレクトリ基準の絶対パスにして末尾 "/" を取り除く。
 // 実行時のどこにいても同じ意味になる（bash 版 env.sh 同様、存在しなくてもよい）。
 func AbsPath(p string) string {
