@@ -178,20 +178,7 @@ func (m model) previewBodyLines() []string {
 			body = append(body, "  （転送対象はありません）")
 			return body
 		}
-		visible := m.height - 10
-		if visible < 3 {
-			visible = 3
-		}
-		if visible > len(lines) {
-			visible = len(lines)
-		}
-		start := m.fileListScroll
-		if start+visible > len(lines) {
-			start = len(lines) - visible
-			if start < 0 {
-				start = 0
-			}
-		}
+		start, visible := windowStart(m.fileListScroll, len(lines), m.detailVisible())
 		for i := start; i < start+visible && i < len(lines); i++ {
 			body = append(body, "  "+lines[i])
 		}
@@ -201,28 +188,31 @@ func (m model) previewBodyLines() []string {
 		if start+visible < len(lines) {
 			body = append(body, "  ↓ "+itoa(len(lines)-start-visible)+" 件省略")
 		}
+		if m.plan.Truncated {
+			body = append(body, "  ※ 差分が多いため "+itoa(len(lines))+" 件で表示を打ち切っています")
+		}
 		return body
 	}
 	tabs := []string{"概要", "転送対象", "スキップ/その他"}
 	body = append(body, " [Tab] "+tabs[m.previewTab]+"（0:"+tabs[0]+" 1:"+tabs[1]+" 2:"+tabs[2]+"）")
 	switch m.previewTab {
-	case 1:
-		lines := m.plan.Transfer
+	case 1, 2:
+		lines := m.previewTabLines()
 		if len(lines) == 0 {
-			body = append(body, "  （転送対象はありません）")
+			body = append(body, "  （該当する差分はありません）")
 		} else {
-			for _, l := range lines {
-				body = append(body, "  "+l)
+			start, visible := windowStart(m.previewScroll, len(lines), m.detailVisible())
+			for i := start; i < start+visible && i < len(lines); i++ {
+				body = append(body, "  "+lines[i])
 			}
-		}
-	case 2:
-		lines := append([]string{}, m.plan.Skipped...)
-		lines = append(lines, m.plan.Other...)
-		if len(lines) == 0 {
-			body = append(body, "  （スキップ/その他の差分はありません）")
-		} else {
-			for _, l := range lines {
-				body = append(body, "  "+l)
+			if start > 0 {
+				body = append(body, "  ↑ "+itoa(start)+" 件省略")
+			}
+			if start+visible < len(lines) {
+				body = append(body, "  ↓ "+itoa(len(lines)-start-visible)+" 件省略（↑/↓ でスクロール）")
+			}
+			if m.plan.Truncated {
+				body = append(body, "  ※ 差分が多いため "+itoa(len(lines))+" 件で表示を打ち切っています")
 			}
 		}
 	default:
@@ -232,6 +222,46 @@ func (m model) previewBodyLines() []string {
 		body = append(body, " "+cursor(i == m.sel)+" "+item)
 	}
 	return body
+}
+
+// previewTabLines は現在の差分タブに表示する行を返す（概要タブは空）。
+func (m model) previewTabLines() []string {
+	switch m.previewTab {
+	case 1:
+		return m.plan.Transfer
+	case 2:
+		lines := append([]string{}, m.plan.Skipped...)
+		return append(lines, m.plan.Other...)
+	default:
+		return nil
+	}
+}
+
+// detailVisible は差分詳細に表示できる行数（画面高さに合わせる）。
+func (m model) detailVisible() int {
+	visible := m.height - 10
+	if visible < 3 {
+		visible = 3
+	}
+	return visible
+}
+
+// windowStart はスクロール位置と件数から表示開始位置と表示件数を返す。
+func windowStart(scroll, total, visible int) (start, n int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	if visible > total {
+		visible = total
+	}
+	start = scroll
+	if start+visible > total {
+		start = total - visible
+	}
+	if start < 0 {
+		start = 0
+	}
+	return start, visible
 }
 
 func (m model) optionLine(i int) string {

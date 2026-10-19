@@ -536,3 +536,39 @@ func TestPreviewHeaderLines_unknownSpace(t *testing.T) {
 		t.Errorf("不明を不足と誤表示している:\n%s", body)
 	}
 }
+
+// 差分タブは画面高さでウィンドウ表示し、↑/↓ でスクロールできる。
+func TestPreviewTabScrolls(t *testing.T) {
+	m := tbase()
+	m.stage = stPreview
+	m.previewTab = 1
+	m.items = []string{"a", "b", "c"}
+	for i := 0; i < 100; i++ {
+		m.plan.Transfer = append(m.plan.Transfer, ">f 1 f"+itoa(i))
+	}
+	body := m.previewBodyLines()
+	// タイトル + 表示行 + 省略案内 + メニュー3行 程度に収まること（全100行を描かない）
+	if len(body) > m.height {
+		t.Errorf("詳細を画面高さで打ち切っていない: %d 行", len(body))
+	}
+	joined := strings.Join(body, "\n")
+	if !strings.Contains(joined, "↓") {
+		t.Errorf("続きがある案内が無い:\n%s", joined)
+	}
+
+	m2 := m
+	m2 = stepKey(m2, down())
+	if m2.previewScroll != 1 {
+		t.Errorf("↓ でスクロールしない: %d", m2.previewScroll)
+	}
+	m2 = stepKey(m2, up())
+	if m2.previewScroll != 0 {
+		t.Errorf("↑ で戻らない: %d", m2.previewScroll)
+	}
+	// Tab を切り替えるとスクロール位置は先頭に戻る
+	m.previewScroll = 5
+	m = stepKey(m, tea.KeyMsg{Type: tea.KeyTab})
+	if m.previewScroll != 0 {
+		t.Errorf("Tab 切替でスクロール位置が戻らない: %d", m.previewScroll)
+	}
+}

@@ -201,6 +201,10 @@ type Plan struct {
 	Bytes   int64
 	Lines   []string // "item name" 形式（dry-run 表示用）
 
+	// Truncated は差分の詳細リストを maxPlanDetails 件で打ち切ったことを示す。
+	// 巨大なツリーでも Plan がメモリを圧迫しないようにする（件数は Changes/Files が保持）。
+	Truncated bool
+
 	// 差分詳細（タブ表示用）
 	Transfer []string // 転送されるファイル（>f...）
 	Skipped  []string // スキップ/属性のみの変化（.f... / .d...）
@@ -236,23 +240,36 @@ func (j *Job) PlanChanges() Plan {
 		actionable := !strings.HasPrefix(item, ".d")
 		if actionable {
 			plan.Changes++
-			plan.Lines = append(plan.Lines, entry)
+			plan.Lines = planAppend(plan.Lines, entry, &plan.Truncated)
 		}
 		switch {
 		case strings.HasPrefix(item, ">f"):
 			plan.Files++
 			plan.Bytes += size
-			plan.Transfer = append(plan.Transfer, entry)
+			plan.Transfer = planAppend(plan.Transfer, entry, &plan.Truncated)
 		case strings.HasPrefix(item, "."):
-			plan.Skipped = append(plan.Skipped, entry)
+			plan.Skipped = planAppend(plan.Skipped, entry, &plan.Truncated)
 		case strings.HasPrefix(item, ">"), strings.HasPrefix(item, "c"), strings.HasPrefix(item, "h"):
 			// シンボリックリンク作成・ディレクトリ作成・ハードリンクなど。
-			plan.Transfer = append(plan.Transfer, entry)
+			plan.Transfer = planAppend(plan.Transfer, entry, &plan.Truncated)
 		default:
-			plan.Other = append(plan.Other, entry)
+			plan.Other = planAppend(plan.Other, entry, &plan.Truncated)
 		}
 	}
 	return plan
+}
+
+// maxPlanDetails は Plan に保持する差分詳細（Lines / Transfer / Skipped / Other）の
+// 最大件数。巨大なツリーで全行をメモリに載せないための上限。
+const maxPlanDetails = 2000
+
+// planAppend は詳細リストが上限未満のときだけ追記する。
+func planAppend(list []string, entry string, truncated *bool) []string {
+	if len(list) >= maxPlanDetails {
+		*truncated = true
+		return list
+	}
+	return append(list, entry)
 }
 
 // parseDiffLine は "item size name..." （name は空白を含み得る）を分解する。

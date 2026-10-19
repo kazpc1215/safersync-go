@@ -142,6 +142,7 @@ type model struct {
 	fileListScroll int
 	showLog        bool
 	logScroll      int
+	previewScroll  int
 	logLines       []string // ログ表示用のキャッシュ（毎レンダーで読まない）
 	previewTab     int
 
@@ -768,6 +769,7 @@ func (m *model) updateOptions(key string) (tea.Model, tea.Cmd) {
 func (m *model) updatePreview(key string) (tea.Model, tea.Cmd) {
 	if key == "tab" {
 		m.previewTab = (m.previewTab + 1) % 3
+		m.previewScroll = 0
 		return m, nil
 	}
 	if m.showFileList {
@@ -784,6 +786,23 @@ func (m *model) updatePreview(key string) (tea.Model, tea.Cmd) {
 			m.showFileList = false
 		}
 		return m, nil
+	}
+	// 差分タブでは ↑/↓ を詳細のスクロールに使う（項目の移動は ←/→ でも可）。
+	if m.previewTab != 0 && !m.showFileList {
+		lines := m.previewTabLines()
+		n := len(lines)
+		switch key {
+		case "up", "k":
+			if m.previewScroll > 0 {
+				m.previewScroll--
+			}
+			return m, nil
+		case "down", "j":
+			if m.previewScroll < n-1 {
+				m.previewScroll++
+			}
+			return m, nil
+		}
 	}
 	n := len(m.items)
 	switch key {

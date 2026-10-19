@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -181,5 +182,29 @@ func TestIsVanishedExit(t *testing.T) {
 		if IsVanishedExit(rc) {
 			t.Errorf("rc=%d を vanished と誤判定した", rc)
 		}
+	}
+}
+
+// 巨大なツリーでも詳細リストは上限で打ち切り、件数は正しく数える。
+func TestPlanChangesTruncatesDetails(t *testing.T) {
+	if !RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	src, dst := t.TempDir(), t.TempDir()
+	for i := 0; i < maxPlanDetails+3; i++ {
+		p := filepath.Join(src, fmt.Sprintf("f%05d", i))
+		if err := os.WriteFile(p, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan := (&Job{Src: src, Dst: dst, FAT: true}).PlanChanges()
+	if plan.Changes != maxPlanDetails+3 {
+		t.Fatalf("Changes = %d, want %d", plan.Changes, maxPlanDetails+3)
+	}
+	if !plan.Truncated {
+		t.Error("Truncated が立っていない")
+	}
+	if len(plan.Lines) != maxPlanDetails || len(plan.Transfer) != maxPlanDetails {
+		t.Errorf("詳細の件数 = %d / %d, want %d", len(plan.Lines), len(plan.Transfer), maxPlanDetails)
 	}
 }
