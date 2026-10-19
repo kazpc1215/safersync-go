@@ -221,11 +221,21 @@ loop:
 				total = done
 			}
 			pct, _, speed, eta := progressFrom(done, 0, j.PlanBytes, start, time.Now())
-			fmt.Fprintf(j.Out, "\r\033[K  %s", DrawProgress(pct, done, total, speed, eta))
+			line := "  " + DrawProgress(pct, done, total, speed, eta)
+			if j.ProgressTTY {
+				// 端末では1行を書き換える（\r で行頭復帰 → 行末までクリア）。
+				fmt.Fprintf(j.Out, "\r\033[K%s", line)
+			} else {
+				// 端末以外（--progress をパイプ/ログへ強制した場合）は制御文字を
+				// 混入させず、そのまま1行として出す。
+				fmt.Fprintln(j.Out, line)
+			}
 		}
 	}
 
-	fmt.Fprint(j.Out, "\r\033[K")
+	if j.ProgressTTY {
+		fmt.Fprint(j.Out, "\r\033[K")
+	}
 	// 子プロセスが終了してから書き込みを確定させる（開いたまま読むと
 	// 末尾が欠ける環境がある）。
 	_ = tmp.Close()

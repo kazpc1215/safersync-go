@@ -212,6 +212,7 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			IgnoreSpace:  opts.IgnoreSpaceCheck,
 			Verbose:      opts.Stats,
 			ShowProgress: showProgress,
+			ProgressTTY:  outTTY,
 			NoCaffeinate: opts.NoCaffeinate,
 			DryRun:       opts.DryRun,
 			Ctx:          ctx,
