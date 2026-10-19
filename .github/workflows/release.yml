@@ -9,7 +9,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest # shasum を使うため。darwin/linux のクロスコンパイルはどの OS でも可能
+    # クロスコンパイル（CGO_ENABLED=0）なので linux でビルドできる。Makefile は
+    # sha256sum を優先し shasum にフォールバックするため OS を問わない。macOS の
+    # arm64 ランナーはキュー混雑の通知が出るため linux を使う。
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
