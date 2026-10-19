@@ -352,6 +352,10 @@ func (m model) doneLines() []string {
 	if m.plan.Changes == 0 && m.plan.Files == 0 {
 		status = "転送するものはありませんでした（すべて最新）"
 	}
+	if m.dryRun {
+		status = "dry-run のためコピーしていません"
+		verifyTxt = "（dry-run のため照合は行いません）"
+	}
 	out = append(out,
 		"  "+status,
 		"",
@@ -359,7 +363,7 @@ func (m model) doneLines() []string {
 		"   ・照合結果: "+verifyTxt,
 		"   ・ログ保存: "+m.logFile,
 	)
-	if titleOK {
+	if titleOK && !m.dryRun {
 		out = append(out, "", "  "+stOk.Render("SDカード/メディアを安全に取り外すことができます。"))
 	}
 	if m.interrupt {

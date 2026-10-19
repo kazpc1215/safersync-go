@@ -83,6 +83,33 @@ func startPlanCmd(m *model) tea.Cmd {
 	}
 }
 
+// startRun はプレビューの「開始」から呼ばれ、--verify-only / --dry-run /
+// 通常の転送を振り分ける。戻り値の tea.Cmd は非同期処理（照合など）用。
+func (m *model) startRun() (tea.Cmd, error) {
+	if m.optVerifyOnly {
+		m.startAt = time.Now()
+		m.xferFiles = 0
+		m.xferBytes = 0
+		m.stage = stVerifyBusy
+		return startVerifyCmd(m), nil
+	}
+	if m.optDryRun {
+		m.startAt = time.Now()
+		m.xferFiles = m.plan.Files
+		m.xferBytes = m.plan.Bytes
+		m.dryRun = true
+		m.finalRC = 0
+		m.stage = stDone
+		core.LogMsg("COPY dry-run " + m.src + " -> " + m.dst + " [tui]")
+		return nil, nil
+	}
+	if err := m.beginTransfer(); err != nil {
+		return nil, err
+	}
+	m.stage = stTransfer
+	return nil, nil
+}
+
 // beginTransfer はダッシュボードを開始し、進捗通知の goroutine を起動する。
 // Update から直接呼ぶ（rsync の起動はノンブロッキング）。
 func (m *model) beginTransfer() error {

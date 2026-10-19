@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -406,5 +407,64 @@ func TestBarFillColor(t *testing.T) {
 	applyTheme("high-contrast", false)
 	if got := barFillColor(95); got != "10" {
 		t.Errorf("high-contrast のバー色が想定外: %s", got)
+	}
+}
+
+// CLI の Options が TUI の Job と表示に反映されること。
+func TestNewModelWithOptions(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	opts := &core.Options{
+		From: src, To: dst,
+		FAT: false, Checksum: true, DryRun: true, VerifyOnly: false,
+		NoVerify: true, IgnoreSpaceCheck: true, Stats: true,
+		NoCaffeinate: true, Excludes: []string{"*.tmp", "cache/"},
+	}
+	m := newModelWithOptions(opts, "/media/vols", "", "")
+	if m.mountRoot != "/media/vols" {
+		t.Errorf("mountRoot = %q", m.mountRoot)
+	}
+	if !m.optChecksum || m.optFAT || !m.optDryRun || !m.optNoVerify ||
+		!m.optIgnoreSpace || !m.optVerbose || m.optCaffeinate {
+		t.Errorf("CLI オプションが反映されていない: %+v", m)
+	}
+	j := m.job()
+	if j.FAT || !j.Checksum || !j.DryRun || !j.IgnoreSpace || !j.Verbose || !j.NoCaffeinate {
+		t.Errorf("Job に反映されていない: %+v", j)
+	}
+	if len(j.Excludes) != 4 { // *.LRV, *.THM, *.tmp, cache/
+		t.Errorf("除外パターンが反映されていない: %v", j.Excludes)
+	}
+}
+
+// --dry-run の TUI は転送せず完了画面へ進む。
+func TestStartRunDryRun(t *testing.T) {
+	m := tbase()
+	m.optDryRun = true
+	m.plan = core.Plan{Files: 2, Changes: 2, Bytes: 10}
+	cmd, err := m.startRun()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd != nil {
+		t.Error("dry-run は非同期コマンドを返さないはず")
+	}
+	if m.stage != stDone || !m.dryRun || m.finalRC != 0 {
+		t.Errorf("stage=%v dryRun=%v rc=%d", m.stage, m.dryRun, m.finalRC)
+	}
+}
+
+// --no-verify の TUI は転送完了後に照合せず完了する。
+func TestTransferDoneNoVerify(t *testing.T) {
+	m := tbase()
+	m.optNoVerify = true
+	m.stage = stTransfer
+	m.startAt = time.Now()
+	nm, cmd := m.Update(transferDoneMsg{rc: 0})
+	gm := nm.(*model)
+	if cmd != nil {
+		t.Error("--no-verify では照合コマンドを返さないはず")
+	}
+	if gm.stage != stDone || gm.verifyRC != 0 || gm.finalRC != 0 {
+		t.Errorf("stage=%v verifyRC=%d finalRC=%d", gm.stage, gm.verifyRC, gm.finalRC)
 	}
 }

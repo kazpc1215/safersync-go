@@ -39,11 +39,11 @@ func (m *model) terminateChild() {
 // RunTui は対話ウィザードを実行し、終了コードを返す。
 // 呼び出し側（cli）は対話端末かどうかを確認してから呼ぶ。
 // in / out は対話の入出力（nil なら Bubble Tea の既定 = os.Stdin / os.Stdout）。
-func RunTui(mountRoot, from, to string, in io.Reader, out io.Writer) int {
+func RunTui(opts *core.Options, mountRoot string, in io.Reader, out io.Writer) int {
 	// 引数で指定されていない方だけ、前回使ったパスを補う（利便性向上）。
 	// 明示指定（例: --to X）を履歴で上書きしない。
-	from, to = fillFromHistory(from, to)
-	m := newModel(mountRoot, from, to)
+	from, to := fillFromHistory(opts.From, opts.To)
+	m := newModelWithOptions(opts, mountRoot, from, to)
 	// 初期メニューの組み立て（プリフィル済みならそのステージのもの）
 	switch m.stage {
 	case stDest:

@@ -98,8 +98,12 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "✗ TUI は対話端末でのみ起動できます（--help を参照）")
 			return ExitError
 		}
+		if len(opts.Jobs) > 0 {
+			fmt.Fprintln(stderr, "✗ TUI では --job は使えません（位置引数か --from / --to で1組だけ指定してください）")
+			return ExitError
+		}
 		// 対話ウィザード（Bubble Tea）。戻り値は CLI と同じ終了コード体系
-		return tui.RunTui(mountRootOf(opts), opts.From, opts.To, stdin, stdout)
+		return tui.RunTui(opts, mountRootOf(opts), stdin, stdout)
 	}
 
 	// --- 実行対象ジョブの決定（単発 or 複数）---

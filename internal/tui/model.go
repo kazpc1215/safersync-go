@@ -69,13 +69,19 @@ type model struct {
 	prefillTo   string // --to
 	logFile     string
 
-	// TUI オプション（bash 版既定）
-	optLRV        bool
-	optTHM        bool
-	optTMP        bool
-	optChecksum   bool
-	optCaffeinate bool
-	caffeineAvail bool
+	// TUI オプション（bash 版既定＋CLI 引数を反映）
+	optLRV         bool
+	optTHM         bool
+	optTMP         bool
+	optChecksum    bool
+	optCaffeinate  bool
+	caffeineAvail  bool
+	optFAT         bool
+	optDryRun      bool
+	optVerifyOnly  bool
+	optNoVerify    bool
+	optIgnoreSpace bool
+	optVerbose     bool
 
 	src, dst string
 
@@ -116,6 +122,7 @@ type model struct {
 	elapsed   time.Duration
 	xferRC    int
 	verifyRC  int
+	dryRun    bool
 	verifyOut string
 	finalRC   int
 	interrupt bool
@@ -141,19 +148,35 @@ type model struct {
 }
 
 func newModel(mountRoot, from, to string) *model {
+	return newModelWithOptions(core.NewOptions(), mountRoot, from, to)
+}
+
+// newModelWithOptions は CLI の Options を反映した model を作る。
+// newModel はテスト互換のための薄いラッパ。
+func newModelWithOptions(opts *core.Options, mountRoot, from, to string) *model {
+	if opts == nil {
+		opts = core.NewOptions()
+	}
 	m := model{
-		mountRoot:     mountRoot,
-		prefillFrom:   from,
-		prefillTo:     to,
-		optLRV:        true,
-		optTHM:        true,
-		optTMP:        false,
-		optChecksum:   false,
-		optCaffeinate: true,
-		caffeineAvail: hasCaffeinate(),
-		returnTo:      stSource,
-		stage:         stSource,
-		logFile:       core.LogFile(),
+		mountRoot:      mountRoot,
+		prefillFrom:    from,
+		prefillTo:      to,
+		optLRV:         true,
+		optTHM:         true,
+		optTMP:         false,
+		optChecksum:    opts.Checksum,
+		optCaffeinate:  !opts.NoCaffeinate,
+		caffeineAvail:  hasCaffeinate(),
+		optFAT:         opts.FAT,
+		optDryRun:      opts.DryRun,
+		optVerifyOnly:  opts.VerifyOnly,
+		optNoVerify:    opts.NoVerify,
+		optIgnoreSpace: opts.IgnoreSpaceCheck,
+		optVerbose:     opts.Stats,
+		extraExcludes:  append([]string{}, opts.Excludes...),
+		returnTo:       stSource,
+		stage:          stSource,
+		logFile:        core.LogFile(),
 	}
 	// 引数があればプリフィル（--tui と位置引数の併用。bash 版と同じ）
 	if m.prefillFrom != "" {
@@ -176,12 +199,14 @@ func (m model) job() *core.Job {
 	return &core.Job{
 		Src: m.src, Dst: m.dst,
 		Excludes:     excl,
-		FAT:          true, // TUI は既定（exFAT 安全側）に固定。CLI --apfs を使う
+		FAT:          m.optFAT,
 		Checksum:     m.optChecksum,
-		Verbose:      false,
+		IgnoreSpace:  m.optIgnoreSpace,
+		Verbose:      m.optVerbose,
 		ShowProgress: false,
 		ListFiles:    true,
 		NoCaffeinate: !m.optCaffeinate,
+		DryRun:       m.optDryRun,
 		Log:          core.LogMsg,
 	}
 }
@@ -278,6 +303,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.verifyRC = 1 // bash 版と同じ: 転送失敗なら照合は行わない
 			m.elapsed = time.Since(m.startAt)
 			m.finalRC = msg.rc
+			m.stage = stDone
+			return m, nil
+		}
+		if m.optNoVerify {
+			m.elapsed = time.Since(m.startAt)
+			m.verifyRC = 0
+			m.finalRC = 0
 			m.stage = stDone
 			return m, nil
 		}
@@ -410,12 +442,12 @@ func (m *model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.xferRC = 0
 				m.verifyRC = 0
 				m.finalRC = 0
-				if err := m.beginTransfer(); err != nil {
+				cmd, err := m.startRun()
+				if err != nil {
 					m.message("再試行できませんでした: "+err.Error(), stDone)
 					return m, nil
 				}
-				m.stage = stTransfer
-				return m, nil
+				return m, cmd
 			case "v", "V":
 				m.stage = stVerifyBusy
 				return m, startVerifyCmd(m)
@@ -750,12 +782,12 @@ func (m *model) updatePreview(key string) (tea.Model, tea.Cmd) {
 		switch m.sel {
 		case 0:
 			if m.spaceOK && m.mounted {
-				if err := m.beginTransfer(); err != nil {
+				cmd, err := m.startRun()
+				if err != nil {
 					m.message("実行できませんでした: "+err.Error(), stOptions)
 					return m, nil
 				}
-				m.stage = stTransfer
-				return m, nil
+				return m, cmd
 			}
 		case 1:
 			m.stage = stOptions
