@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: macos-latest # shasum を使うため。darwin/linux のクロスコンパイルはどの OS でも可能
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # formula を main へ同期するため main を取得する
       - uses: actions/setup-go@v5
