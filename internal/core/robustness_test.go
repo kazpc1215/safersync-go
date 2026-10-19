@@ -7,6 +7,7 @@ package core
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -179,7 +180,10 @@ func TestIsInterrupted(t *testing.T) {
 	if !isInterrupted(context.DeadlineExceeded) {
 		t.Error("context.DeadlineExceeded を中断と判定していない")
 	}
-	if isInterrupted(context.WithValue(context.Background(), struct{}{}, 1).Err()) {
-		t.Error("nil エラーを中断と誤判定している")
+	if isInterrupted(nil) {
+		t.Error("nil を中断と誤判定している")
+	}
+	if isInterrupted(errors.New("rsync がエラー終了しました (rc=23)")) {
+		t.Error("通常のエラーを中断と誤判定している")
 	}
 }
