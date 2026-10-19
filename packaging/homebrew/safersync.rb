@@ -18,21 +18,21 @@ class Safersync < Formula
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/kazpc1215/safersync-go/releases/download/v1.5.5/safersync-1.5.5-darwin-arm64.tar.gz"
-      sha256 "4be6f024a16765bee3b19a10feb15c0517797137cb7e5d3a756bf76f85d7f062"
+      url "https://github.com/kazpc1215/safersync-go/releases/download/v1.5.6/safersync-1.5.6-darwin-arm64.tar.gz"
+      sha256 "ae4520c40498f312da4ed6ac22f20d40b3f7b2757180f86ba0e0e147761b4789"
     else
-      url "https://github.com/kazpc1215/safersync-go/releases/download/v1.5.5/safersync-1.5.5-darwin-amd64.tar.gz"
-      sha256 "000a865d7efc59f40f9cb09962d52a0f9d0136065e75165e4c2ed296fb35420c"
+      url "https://github.com/kazpc1215/safersync-go/releases/download/v1.5.6/safersync-1.5.6-darwin-amd64.tar.gz"
+      sha256 "3b40ede01fa7c53fc0691a7dfda88584cd30175685859f26b449ba0917492da2"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/kazpc1215/safersync-go/releases/download/v1.5.5/safersync-1.5.5-linux-arm64.tar.gz"
-      sha256 "e8c15e929d70c552161a1c4eacc2b2a3df4c10c288f84a2b6445b23de6b328c3"
+      url "https://github.com/kazpc1215/safersync-go/releases/download/v1.5.6/safersync-1.5.6-linux-arm64.tar.gz"
+      sha256 "1551c9825dc54d7cb91b77550a78ac5ca4254cf2837121e851f2d91e5dd6fe11"
     else
-      url "https://github.com/kazpc1215/safersync-go/releases/download/v1.5.5/safersync-1.5.5-linux-amd64.tar.gz"
-      sha256 "ef57045b1681f1d35c4c5db39319aee6761541f2fe399e1c77b8cd6de0d63164"
+      url "https://github.com/kazpc1215/safersync-go/releases/download/v1.5.6/safersync-1.5.6-linux-amd64.tar.gz"
+      sha256 "e23b218470519999654d30c21d45be05754275c73a16c8704c65b8b29cf11bc5"
     end
   end
 
@@ -48,6 +48,6 @@ class Safersync < Formula
   end
 
   test do
-    assert_match "safersync v1.5.5", shell_output("#{bin}/safersync --version")
+    assert_match "safersync v1.5.6", shell_output("#{bin}/safersync --version")
   end
 end
