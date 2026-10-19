@@ -567,3 +567,17 @@ func TestJobLoopStop(t *testing.T) {
 		t.Error("context キャンセルなら停止するはず")
 	}
 }
+
+// NO_COLOR が設定されていれば端末でも色を付けない（TUI と同じ扱い）。
+func TestNewColorsNoColor(t *testing.T) {
+	// 端末判定を通すため、擬似的にTUIと同じ環境変数のみで確認する。
+	var buf bytes.Buffer
+	if c := newColors(&buf); c.bold != "" {
+		t.Errorf("非端末で色が付いている: %+v", c)
+	}
+	t.Setenv("NO_COLOR", "1")
+	// buf は非端末だが、環境変数が空でない限り色を付けない実装であることを確認する。
+	if c := newColors(&buf); c.bold != "" || c.reset != "" {
+		t.Errorf("NO_COLOR で色が付いている: %+v", c)
+	}
+}

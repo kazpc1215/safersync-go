@@ -21,7 +21,8 @@ import (
 type colors struct{ bold, red, green, yellow, blue, reset string }
 
 func newColors(stdout io.Writer) colors {
-	if !isTerminalWriter(stdout) {
+	// NO_COLOR は非端末と同じ扱い（空文字でなければ色を付けない）。
+	if !isTerminalWriter(stdout) || os.Getenv("NO_COLOR") != "" {
 		return colors{}
 	}
 	return colors{bold: "\x1b[1m", red: "\x1b[31m", green: "\x1b[32m",
