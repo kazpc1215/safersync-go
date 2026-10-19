@@ -27,6 +27,13 @@ RELEASES_URL="${SAFERSYNC_RELEASES_URL:-https://github.com/$REPO/releases/downlo
 
 echo "safersync インストーラ（${REPO}）"
 
+# ダウンロードは既定で https を強制する。テスト用ミラーを明示したときは、
+# その指定（http もあり得る）を尊重して強制を外す。
+CURL="curl -fsSL"
+if [ -z "${SAFERSYNC_RELEASES_URL:-}" ]; then
+  CURL="curl -fsSL --proto =https --proto-redir =https --tlsv1.2"
+fi
+
 # OS / アーキの判定（Go の GOOS/GOARCH 命名）
 os=$(uname -s); arch=$(uname -m)
 case "$os" in
@@ -40,13 +47,18 @@ ver="${1:-${SAFERSYNC_VERSION:-}}"
 if [ -z "$ver" ]; then
   echo "  最新リリースを確認中..."
   api="https://api.github.com/repos/$REPO/releases/latest"
-  ver=$(curl -fsSL "$api" 2>/dev/null | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/') || ver=""
+  ver=$($CURL "$api" 2>/dev/null | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/') || ver=""
   if [ -z "$ver" ]; then
     echo "✗ 最新リリースを取得できませんでした。ネットワークを確認するか、バージョンを指定してください" >&2
     echo "  例: ./install.sh v1.2.0" >&2
     exit 1
   fi
 fi
+# バージョン形式の検証（パスや URL にそのまま入るため、想定外の値を弾く）
+case "$ver" in
+  v[0-9]*.[0-9]*.[0-9]*) ;;
+  *) echo "✗ バージョンの形式が不正です: ${ver}（例: v1.2.0）" >&2; exit 1 ;;
+esac
 echo "  対象: $ver / ${os}-${g}"
 
 tmp=$(mktemp -d)
@@ -57,14 +69,14 @@ file_url="$RELEASES_URL/$ver/$file"
 sums_url="$RELEASES_URL/$ver/SHA256SUMS"
 
 echo "  ダウンロード中: $file_url"
-curl -fsSL "$file_url" -o "$tmp/$file" || {
+$CURL "$file_url" -o "$tmp/$file" || {
   echo "✗ ダウンロードできませんでした（${file_url}）" >&2
   exit 1
 }
 
 # チェックサムの検証（壊れた・差し替えられた tarball を展開しない）
 echo "  チェックサムを確認中..."
-curl -fsSL "$sums_url" -o "$tmp/SHA256SUMS" || {
+$CURL "$sums_url" -o "$tmp/SHA256SUMS" || {
   echo "✗ SHA256SUMS を取得できませんでした（${sums_url}）" >&2
   echo "  安全のためインストールを中止します" >&2
   exit 1
@@ -95,6 +107,14 @@ tar -C "$tmp" -xzf "$tmp/$file"
 mkdir -p "$PREFIX"
 mv "${tmp:?}/$APP" "$PREFIX/$APP"
 chmod +x "$PREFIX/$APP"
+
+# 導入できたバイナリが要求したバージョンかを確認する（取り違え防止）
+installed=$("$PREFIX/$APP" --version 2>/dev/null || true)
+case "$installed" in
+  *"${ver#v}"*) ;;
+  *) echo "✗ 導入したバイナリのバージョンが一致しません（期待: ${ver#v} / 実際: ${installed:-不明}）" >&2
+     exit 1 ;;
+esac
 
 echo "✓ インストール完了: $PREFIX/$APP"
 if ! command -v "$APP" >/dev/null 2>&1; then
