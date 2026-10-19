@@ -3,6 +3,20 @@
 本プロジェクトの主な変更点を記録します。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、
 バージョニングは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [1.5.4] - 2026-10-19
+
+### 変更
+
+- TUI の進捗表示（転送中のファイル名）が rsync のログ全体を毎秒読んでいたのを、
+  末尾だけ読む方式に変更しました。ログが大きくなっても読み取り量が一定になります
+- Homebrew formula の `brew audit` 警告を解消しました（`desc` を大文字始まりにし、
+  `version` 行を廃止して URL からバージョンを走査させます）
+- リリース時に Homebrew tap（`kazpc1215/homebrew-tap`）へ formula を自動反映するように
+  しました。別リポジトリへ push する Secrets `TAP_GITHUB_TOKEN` があるときだけ実行します
+  （古いタグの再リリースで巻き戻さないガードも修正）
+- 推移的依存を最新へ更新しました
+- テストを追加し、カバレッジを 77.5% → 79.8% に改善しました
+
 ## [1.5.3] - 2026-10-19
 
 Go のソースに変更はなく、CI・配布まわりのメンテナンスリリースです。
@@ -144,7 +158,8 @@ Go のソースに変更はなく、機能差のない CI/CD のメンテナン�
 個々の変更はリリースノートと git 履歴を参照してください:
 <https://github.com/kazpc1215/safersync-go/releases>
 
-[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.5.3...HEAD
+[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.5.4...HEAD
+[1.5.4]: https://github.com/kazpc1215/safersync-go/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/kazpc1215/safersync-go/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/kazpc1215/safersync-go/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/kazpc1215/safersync-go/compare/v1.5.0...v1.5.1
