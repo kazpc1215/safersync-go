@@ -1,0 +1,29 @@
+version: 2
+
+updates:
+  # Go の依存（charmbracelet など）。minor / patch はまとめて 1 PR にする。
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      go-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions。Node ランタイムの更新（v5 → v7 など）を自動で追随するため。
+  # major は個別 PR（レビューのため）、minor / patch はまとめる。
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
