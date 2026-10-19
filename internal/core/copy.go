@@ -254,9 +254,10 @@ loop:
 	if len(data) > 0 {
 		// 進捗用のファイル一覧（--out-format）は表示せず、失敗時だけ原因究明の
 		// ため stderr へ回す。--stats の統計行などは従来どおり stdout に出す。
-		if rc != 0 || interrupted {
+		if interrupted || (rc != 0 && !IsVanishedExit(rc)) {
 			_, _ = j.Err.Write(data)
 		} else {
+			// 成功時と rc=24（消えたファイル）は差分の羅列を出さず、統計行だけ出す。
 			writeNonDiffOutput(j.Out, data)
 		}
 	}
