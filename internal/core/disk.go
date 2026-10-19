@@ -12,8 +12,51 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 )
+
+// ---------------------------------------------------------------------------
+// mount 出力のキャッシュ
+// ---------------------------------------------------------------------------
+
+// mount コマンドは1回の exec（プロセス起動）を伴うため、マウント判定のたびに
+// 実行すると、祖先を1段ずつたどる mountPointOf や複数ボリュームの列挙で
+// 積み上がる。TTL 付きでプロセス内にキャッシュする（マウント状態が変わっても
+// 数秒で反映される）。
+const mountCacheTTL = 2 * time.Second
+
+var (
+	mountCacheMu  sync.Mutex
+	mountCacheOut string
+	mountCacheOK  bool
+	mountCacheAt  time.Time
+)
+
+// mountOutput は mount の出力を TTL 付きで返す。取得できたかを ok で返す。
+func mountOutput() (out string, ok bool) {
+	mountCacheMu.Lock()
+	defer mountCacheMu.Unlock()
+	if !mountCacheAt.IsZero() && time.Since(mountCacheAt) < mountCacheTTL {
+		return mountCacheOut, mountCacheOK
+	}
+	data, err := exec.Command("mount").Output()
+	if err != nil {
+		mountCacheOut, mountCacheOK = "", false
+	} else {
+		mountCacheOut, mountCacheOK = string(data), true
+	}
+	mountCacheAt = time.Now()
+	return mountCacheOut, mountCacheOK
+}
+
+// resetMountCache はキャッシュを破棄する（テスト用）。
+func resetMountCache() {
+	mountCacheMu.Lock()
+	mountCacheAt = time.Time{}
+	mountCacheMu.Unlock()
+}
 
 // ---------------------------------------------------------------------------
 // マウント判定
@@ -67,8 +110,9 @@ func isMountPointKnown(path string) (is, known bool) {
 	}
 	// mount の出力を優先する。statfs の fsid 比較だけでは、macOS の
 	// firmlink（/Volumes など）を実マウントと誤判定してしまう。
-	if out, err := exec.Command("mount").Output(); err == nil {
-		return containsMountPoint(string(out), path), true
+	// 出力は TTL 付きでキャッシュし、exec の往復を減らす。
+	if out, ok := mountOutput(); ok {
+		return containsMountPoint(out, path), true
 	}
 	return mountPointByFsid(path)
 }

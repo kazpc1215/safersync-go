@@ -754,3 +754,18 @@ func TestFreeAndTotalBytesOK(t *testing.T) {
 		t.Errorf("TotalBytesOK(/) = %d, %v", total, ok)
 	}
 }
+
+// mount 出力は TTL 付きでキャッシュされ、同じ結果を返す。reset で破棄できる。
+func TestMountOutputCache(t *testing.T) {
+	resetMountCache()
+	out1, ok1 := mountOutput()
+	out2, ok2 := mountOutput() // キャッシュから
+	if out1 != out2 || ok1 != ok2 {
+		t.Errorf("キャッシュで結果が変わった: (%q,%v) -> (%q,%v)", out1, ok1, out2, ok2)
+	}
+	resetMountCache()
+	out3, ok3 := mountOutput()
+	if out1 != out3 || ok1 != ok3 {
+		t.Errorf("reset 後の結果が変わった: (%q,%v) -> (%q,%v)", out1, ok1, out3, ok3)
+	}
+}
