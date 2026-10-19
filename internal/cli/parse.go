@@ -71,6 +71,15 @@ func Parse(argv []string) (*core.Options, error) {
 				return nil, fmt.Errorf("コピー元は1つだけ指定できます（--from か位置引数のどちらか）")
 			}
 			opts.From = v
+		case strings.HasPrefix(a, "-f="):
+			v := strings.TrimPrefix(a, "-f=")
+			if v == "" {
+				return nil, fmt.Errorf("--from にはパスを指定してください")
+			}
+			if opts.From != "" {
+				return nil, fmt.Errorf("コピー元は1つだけ指定できます（--from か位置引数のどちらか）")
+			}
+			opts.From = v
 		case a == "--to" || a == "-t":
 			v, _ := value(argv, &i)
 			if v == "" {
@@ -89,6 +98,15 @@ func Parse(argv []string) (*core.Options, error) {
 				return nil, fmt.Errorf("コピー先は1つだけ指定できます（--to か位置引数のどちらか）")
 			}
 			opts.To = v
+		case strings.HasPrefix(a, "-t="):
+			v := strings.TrimPrefix(a, "-t=")
+			if v == "" {
+				return nil, fmt.Errorf("--to にはパスを指定してください")
+			}
+			if opts.To != "" {
+				return nil, fmt.Errorf("コピー先は1つだけ指定できます（--to か位置引数のどちらか）")
+			}
+			opts.To = v
 		case a == "--exclude" || a == "-x":
 			v, _ := value(argv, &i)
 			if v == "" {
@@ -97,6 +115,12 @@ func Parse(argv []string) (*core.Options, error) {
 			opts.Excludes = append(opts.Excludes, v)
 		case strings.HasPrefix(a, "--exclude="):
 			v := strings.TrimPrefix(a, "--exclude=")
+			if v == "" {
+				return nil, fmt.Errorf("--exclude にはパターンを指定してください")
+			}
+			opts.Excludes = append(opts.Excludes, v)
+		case strings.HasPrefix(a, "-x="):
+			v := strings.TrimPrefix(a, "-x=")
 			if v == "" {
 				return nil, fmt.Errorf("--exclude にはパターンを指定してください")
 			}

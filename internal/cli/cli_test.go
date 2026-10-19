@@ -107,6 +107,25 @@ func TestParse_progressLastWins(t *testing.T) {
 	}
 }
 
+// 短縮形でも = 付き指定を受け付ける（--from=X と同じ意味）。
+func TestParse_shortEquals(t *testing.T) {
+	opts, err := Parse([]string{"-f=/src", "-t=/dst", "-x=*.tmp", "--exclude=*.bak"})
+	if err != nil {
+		t.Fatalf("エラー: %v", err)
+	}
+	if opts.From != "/src" || opts.To != "/dst" {
+		t.Errorf("From=%q To=%q", opts.From, opts.To)
+	}
+	if len(opts.Excludes) != 2 || opts.Excludes[0] != "*.tmp" || opts.Excludes[1] != "*.bak" {
+		t.Errorf("Excludes=%v", opts.Excludes)
+	}
+
+	// 空値はエラー（ロングフォームと同じ扱い）
+	if _, err := Parse([]string{"-f="}); err == nil {
+		t.Error("-f= が空でもエラーにならない")
+	}
+}
+
 func TestParse_tooManyArgs(t *testing.T) {
 	_, err := Parse([]string{"x", "y", "z"})
 	if err == nil {
