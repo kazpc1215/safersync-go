@@ -16,4 +16,14 @@ import (
 var versionFile string
 
 // Version は VERSION ファイルの内容（前後の空白は除去）。
-var Version = strings.TrimSpace(versionFile)
+//
+// 初期化を init 内で行うのは、-ldflags "-X ...=version.Version=..." による
+// 上書きを保持するため。パッケージ変数の初期化式で代入すると、リンカが設定した
+// 値を起動時の init が上書きしてしまう。
+var Version string
+
+func init() {
+	if Version == "" {
+		Version = strings.TrimSpace(versionFile)
+	}
+}
