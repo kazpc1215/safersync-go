@@ -58,7 +58,15 @@ release: clean $(TARGETS) ## リリース用 tarball + チェックサムを dis
 	  tar -C "$$d" -czf "$(DIST)/release/$(APP)-$(VERSION)-$$os-$$arch.tar.gz" $(APP); \
 	  echo "  tar: $(APP)-$(VERSION)-$$os-$$arch.tar.gz"; \
 	done
-	@cd $(DIST)/release && shasum -a 256 *.tar.gz > SHA256SUMS && echo "  done: dist/release/SHA256SUMS"
+	@cd $(DIST)/release && \
+	  if command -v sha256sum >/dev/null 2>&1; then \
+	    sha256sum *.tar.gz > SHA256SUMS; \
+	  elif command -v shasum >/dev/null 2>&1; then \
+	    shasum -a 256 *.tar.gz > SHA256SUMS; \
+	  else \
+	    echo "✗ sha256sum / shasum が見つからないためチェックサムを作成できません" >&2; exit 1; \
+	  fi; \
+	  echo "  done: dist/release/SHA256SUMS"
 
 formula: ## Homebrew formula を dist/release/SHA256SUMS から生成（make release の後）
 	@test -f $(DIST)/release/SHA256SUMS || { \
