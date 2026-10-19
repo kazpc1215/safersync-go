@@ -73,6 +73,8 @@ const helpText = `safersync v%s - rsync の安全なラッパー（コピー →
 環境変数
   SAFERSYNC_MOUNT_ROOT  外付けボリュームの基点（--mount-root と同じ）
   SAFERSYNC_LOG_DIR     ログの場所（既定: macOS は ~/Library/Logs/safersync）
+  SAFERSYNC_THEME       TUI の配色（dark 既定 / light / high-contrast）
+  NO_COLOR              設定すると色を使わない（TUI・CLI 共通）
 
 ログ: %s
 `

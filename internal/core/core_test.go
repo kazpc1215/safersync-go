@@ -25,13 +25,13 @@ func TestScanDirExcludes(t *testing.T) {
 	mk(".Trashes/x")            // 除外（ディレクトリごと）
 	mk("sub/.Spotlight-V100/y") // 除外（サブフォルダ内も）
 
-	res := ScanDir(dir, nil)
+	res := ScanDir(dir, DefaultExcludes)
 	if res.Files != 2 || res.Bytes != 20 {
 		t.Errorf("want 2 files / 20 bytes, got %d files / %d bytes", res.Files, res.Bytes)
 	}
 
 	// --exclude 'sub' で枝ごと除外される
-	res2 := ScanDir(dir, []string{"sub", "photo"})
+	res2 := ScanDir(dir, append(append([]string{}, DefaultExcludes...), "sub", "photo"))
 	if res2.Files != 0 {
 		t.Errorf("want 0 files, got %d", res2.Files)
 	}

@@ -130,6 +130,17 @@ safersync --tui ~/写真 /Volumes/HDD/backup   # コピー元/先をプリフィ
 | 3 | 環境エラー（rsync 未検出、空き容量不足、差分・照合の実行不可など） |
 | 130 | `Ctrl-C` で中断 |
 
+## 環境変数
+
+| 変数 | 説明 |
+|---|---|
+| `SAFERSYNC_MOUNT_ROOT` | 外付けボリュームの基点（`--mount-root` と同じ） |
+| `SAFERSYNC_LOG_DIR` | ログの場所（既定: macOS は `~/Library/Logs/safersync`） |
+| `SAFERSYNC_THEME` | TUI の配色（`dark`（既定）/ `light` / `high-contrast`） |
+| `NO_COLOR` | 設定すると色を使わない（TUI・CLI 共通） |
+
+ログは 5 MiB を超えると `safersync.log.1` に1世代だけ退避します（無限に育ちません）。
+
 ## 開発
 
 ```sh

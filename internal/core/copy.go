@@ -103,8 +103,15 @@ func newRsyncCmd(j *Job, args []string) *exec.Cmd {
 }
 
 // killTree は子プロセス（caffeinate → rsync）グループへシグナルを送る。
+// 回収済み（Wait 済み）のプロセスへ送ると、PID が再利用されていた場合に
+// 無関係なプロセスグループを止めてしまうため、生存を確認してから送る。
 func killTree(cmd *exec.Cmd, sig syscall.Signal) {
-	if cmd.Process == nil {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	// Signal(0) は Wait で回収済みなら ErrProcessDone を返す（os.Process 内部で
+	// 同期されている）。これで遅延 KILL（1秒後）等が無関係な PID を撃つのを防ぐ。
+	if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
 		return
 	}
 	_ = syscall.Kill(-cmd.Process.Pid, sig)

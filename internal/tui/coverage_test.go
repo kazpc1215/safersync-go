@@ -350,6 +350,35 @@ func TestHistoryRoundTrip(t *testing.T) {
 	}
 }
 
+// --to だけ指定したとき、その値を履歴で上書きしないこと。
+func TestFillFromHistoryKeepsExplicitSide(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	// 履歴が無いときは渡された値をそのまま使う。
+	if from, to := fillFromHistory("/x", "/y"); from != "/x" || to != "/y" {
+		t.Errorf("履歴が無いときは引数を保持するはず: %q %q", from, to)
+	}
+
+	saveHistory("/hist-src", "/hist-dst")
+
+	// --to だけ指定 → from のみ履歴で補い、to は指定値のまま。
+	if from, to := fillFromHistory("", "/explicit"); from != "/hist-src" || to != "/explicit" {
+		t.Errorf("--to が履歴で上書きされた: %q %q", from, to)
+	}
+	// --from だけ指定 → to のみ履歴で補う。
+	if from, to := fillFromHistory("/explicit", ""); from != "/explicit" || to != "/hist-dst" {
+		t.Errorf("--from が履歴で上書きされた: %q %q", from, to)
+	}
+	// 両方指定 → 履歴を使わない。
+	if from, to := fillFromHistory("/a", "/b"); from != "/a" || to != "/b" {
+		t.Errorf("両方指定時は履歴を使わないはず: %q %q", from, to)
+	}
+	// 両方未指定 → 両方とも履歴。
+	if from, to := fillFromHistory("", ""); from != "/hist-src" || to != "/hist-dst" {
+		t.Errorf("未指定時は両方履歴で補うはず: %q %q", from, to)
+	}
+}
+
 func TestBrowseListWindowScroll(t *testing.T) {
 	root := t.TempDir()
 	for i := 0; i < 30; i++ {

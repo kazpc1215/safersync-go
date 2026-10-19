@@ -35,6 +35,26 @@ func TestIsTTY_devNullIsNotTTY(t *testing.T) {
 	}
 }
 
+// 色の有無は「実際に出力する先」で判定すること（os.Stdout 固定にしない）。
+func TestNewColorsUsesWriter(t *testing.T) {
+	var buf bytes.Buffer
+	if c := newColors(&buf); c.bold != "" || c.reset != "" {
+		t.Errorf("非ファイル出力に色を付けている: %+v", c)
+	}
+	if c := newColors(nil); c.bold != "" {
+		t.Errorf("nil ライターに色を付けている: %+v", c)
+	}
+	// /dev/null は端末ではないので色なし。
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if c := newColors(f); c.bold != "" {
+		t.Errorf("/dev/null に色を付けている: %+v", c)
+	}
+}
+
 func TestParse_versionFlag(t *testing.T) {
 	opts, err := Parse([]string{"--version"})
 	if err != nil {

@@ -18,8 +18,9 @@ import (
 // colors は端末のときだけ使う ANSI 色。非端末では全て空にする（bash 版と同じ）。
 type colors struct{ bold, red, green, yellow, blue, reset string }
 
-func newColors(stdout bool) colors {
-	if !stdout {
+func newColors(stdout io.Writer) colors {
+	f, ok := stdout.(*os.File)
+	if !ok || !isTTY(f) {
 		return colors{}
 	}
 	return colors{bold: "\x1b[1m", red: "\x1b[31m", green: "\x1b[32m",
@@ -53,7 +54,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	}
 
 	start := time.Now()
-	c := newColors(isTTY(os.Stdout))
+	c := newColors(stdout)
 
 	if opts.ShowStatus {
 		return doStatus(opts, c, stdout)

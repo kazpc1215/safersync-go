@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -150,10 +151,25 @@ func LogDir() string {
 // LogFile はログファイルのフルパス。
 func LogFile() string { return filepath.Join(LogDir(), "safersync.log") }
 
+// logMaxBytes を超えたら1世代だけローテーションする（safersync.log.1）。
+// 長時間の運用でログが無限に育つのを防ぐ。
+const logMaxBytes = 5 << 20 // 5 MiB
+
+// logMu は LogMsg の追記・ローテーションを直列化する（TUI のゴルーチンからも呼ばれる）。
+var logMu sync.Mutex
+
 // LogMsg はログに1行追記する（bash 版 log_msg。失敗しても黙って無視する）。
 func LogMsg(msg string) {
+	logMu.Lock()
+	defer logMu.Unlock()
+
 	_ = os.MkdirAll(LogDir(), 0o755)
-	f, err := os.OpenFile(LogFile(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	path := LogFile()
+	if fi, err := os.Stat(path); err == nil && fi.Size() > logMaxBytes {
+		_ = os.Remove(path + ".1")
+		_ = os.Rename(path, path+".1")
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return
 	}

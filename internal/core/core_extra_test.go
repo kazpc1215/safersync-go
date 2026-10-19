@@ -89,6 +89,38 @@ func TestRsyncArgsListFiles(t *testing.T) {
 	}
 }
 
+func TestLogMsgRotation(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("SAFERSYNC_LOG_DIR", dir)
+
+	path := LogFile()
+	big := make([]byte, logMaxBytes+1)
+	if err := os.WriteFile(path, big, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	LogMsg("hello")
+	if fi, err := os.Stat(path + ".1"); err != nil || fi.Size() != int64(len(big)) {
+		t.Fatalf("5MiB 超でローテーションされない: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "hello") {
+		t.Errorf("ローテーション後の新ログに追記されていない: %q", data)
+	}
+
+	// 上限以下ならローテーションせず追記するだけ。
+	LogMsg("world")
+	if fi, _ := os.Stat(path + ".1"); fi.Size() != int64(len(big)) {
+		t.Errorf("上限以下で退避ファイルが変わった: %d", fi.Size())
+	}
+	data, _ = os.ReadFile(path)
+	if !strings.Contains(string(data), "world") {
+		t.Errorf("追記されていない: %q", data)
+	}
+}
+
 func TestPlanChangesBasic(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()

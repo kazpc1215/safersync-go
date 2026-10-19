@@ -32,6 +32,22 @@ func loadHistory() (string, string) {
 	return h.Src, h.Dst
 }
 
+// fillFromHistory は指定されていない方だけを履歴で補う。
+// 明示指定（例: --to X）を履歴で上書きしないためのもの。
+func fillFromHistory(from, to string) (string, string) {
+	if from != "" && to != "" {
+		return from, to
+	}
+	hsrc, hdst := loadHistory()
+	if from == "" {
+		from = hsrc
+	}
+	if to == "" {
+		to = hdst
+	}
+	return from, to
+}
+
 func saveHistory(src, dst string) {
 	if src == "" {
 		return

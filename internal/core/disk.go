@@ -155,6 +155,9 @@ type ScanResult struct {
 // ScanDir は dir を走査し、除外パターン（ファイル名の glob）に一致する場所を
 // まるごと枝ごと落として（bash 版 find -prune と同じ）、
 // ファイル数と合計バイト数を返す。走査中のエラー（権限など）は無視する。
+//
+// excludes はそのまま適用される（既定除外も含めた全パターンを渡す）。
+// Job からは Job.AllExcludePatterns() を渡す（既定除外の二重適用を防ぐ）。
 func ScanDir(dir string, excludes []string) ScanResult {
 	var res ScanResult
 	// リモート先はローカルからは走査できない（host:path を WalkDir しても失敗する）。
@@ -162,11 +165,8 @@ func ScanDir(dir string, excludes []string) ScanResult {
 	if IsRemote(dir) {
 		return res
 	}
-	// 既定の除外（DEFAULT_EXCLUDES 相当）+ ユーザー指定を合わせて適用する。
-	// bash 版は rsync の --exclude と同じ組み合わせを find -prune にも使う。
-	pats := append(append([]string{}, DefaultExcludes...), excludes...)
-	excl := make([]string, 0, len(pats))
-	for _, e := range pats {
+	excl := make([]string, 0, len(excludes))
+	for _, e := range excludes {
 		if e != "" {
 			excl = append(excl, e)
 		}
