@@ -8,7 +8,7 @@ TARGETS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
 
 # 静的リンク（libc 不依存・任意の環境で動く単一バイナリ）。
 # バージョンはリリースビルド時に上書きできる。
-LDFLAGS := -s -w -X github.com/kazpc1215/safersync/internal/version.Version=$(VERSION)
+LDFLAGS := -s -w -X github.com/kazpc1215/safersync-go/internal/version.Version=$(VERSION)
 
 .PHONY: build test cover vet fmt clean install release formula $(TARGETS)
 

@@ -75,7 +75,7 @@ cd safersync-go && make install
 または `go install` でも入手できます:
 
 ```sh
-go install github.com/kazpc1215/safersync@latest
+go install github.com/kazpc1215/safersync-go@latest
 ```
 
 ## 使い方

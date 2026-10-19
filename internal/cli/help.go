@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/kazpc1215/safersync/internal/version"
+	"github.com/kazpc1215/safersync-go/internal/version"
 )
 
 const helpText = `safersync v%s - rsync の安全なラッパー（コピー → 照合）

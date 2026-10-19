@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	"github.com/kazpc1215/safersync/internal/core"
+	"github.com/kazpc1215/safersync-go/internal/core"
 )
 
 func TestBrowseEntriesAdvanced_filterAndHidden(t *testing.T) {

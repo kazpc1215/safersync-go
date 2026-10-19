@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 
-	"github.com/kazpc1215/safersync/internal/cli"
+	"github.com/kazpc1215/safersync-go/internal/cli"
 )
 
 func main() {

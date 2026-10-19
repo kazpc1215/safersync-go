@@ -10,9 +10,9 @@ import (
 
 	"github.com/charmbracelet/x/term"
 
-	"github.com/kazpc1215/safersync/internal/core"
-	"github.com/kazpc1215/safersync/internal/tui"
-	"github.com/kazpc1215/safersync/internal/version"
+	"github.com/kazpc1215/safersync-go/internal/core"
+	"github.com/kazpc1215/safersync-go/internal/tui"
+	"github.com/kazpc1215/safersync-go/internal/version"
 )
 
 // colors は端末のときだけ使う ANSI 色。非端末では全て空にする（bash 版と同じ）。

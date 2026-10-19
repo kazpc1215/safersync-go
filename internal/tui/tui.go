@@ -13,7 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/kazpc1215/safersync/internal/core"
+	"github.com/kazpc1215/safersync-go/internal/core"
 )
 
 // finalRCWithInterrupt は中断時のメッセージを出しつつ終了コードを返す。

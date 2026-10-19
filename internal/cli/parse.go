@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kazpc1215/safersync/internal/core"
+	"github.com/kazpc1215/safersync-go/internal/core"
 )
 
 // Parse は引数を解析して Options を返す。bash 版 parse_args と同じ規則:

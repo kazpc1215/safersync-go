@@ -12,7 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/kazpc1215/safersync/internal/core"
+	"github.com/kazpc1215/safersync-go/internal/core"
 )
 
 // hasCaffeinate は caffeinate コマンドの有無。

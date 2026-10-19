@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kazpc1215/safersync/internal/core"
-	"github.com/kazpc1215/safersync/internal/version"
+	"github.com/kazpc1215/safersync-go/internal/core"
+	"github.com/kazpc1215/safersync-go/internal/version"
 )
 
 func TestIsTTY_devNullIsNotTTY(t *testing.T) {

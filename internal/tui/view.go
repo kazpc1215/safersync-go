@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kazpc1215/safersync/internal/core"
+	"github.com/kazpc1215/safersync-go/internal/core"
 )
 
 const (

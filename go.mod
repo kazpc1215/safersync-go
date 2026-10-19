@@ -1,4 +1,4 @@
-module github.com/kazpc1215/safersync
+module github.com/kazpc1215/safersync-go
 
 go 1.27
 
