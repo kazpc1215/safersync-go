@@ -102,7 +102,7 @@ safersync user@host:/data /Volumes/HDD/backup  # リモート元から
 
 - リモートは**CLI 専用**です（対話ウィザードはボリューム選択のためローカルのみ）。
 - リモートが絡む場合、**空き容量の確認**と**ファイル数の集計**（参考情報）は行いません。
-  リモート先の進捗はバイト数ではなく**ファイル件数**で表示します。
+  進捗はコピー先を走査せず、rsync が報告する転送バイト数から表示します。
 - 照合（コピー後の自動照合）はリモートでも rsync の差分で行います。
 - ローカルの名前に `:` を含む場合は、先頭に `./` を付けるとローカル扱いになります
   （例: `./撮影:2019`）。これは rsync と同じ規則です。
@@ -120,7 +120,10 @@ safersync --tui ~/写真 /Volumes/HDD/backup   # コピー元/先をプリフィ
 
 - コピー元・先は下位フォルダに移動して選べます（存在しないフォルダはその場で作成できます）
 - プレビューで空き容量不足や未マウントを検知したら開始をブロックします
+  （空き容量を取得できない環境ではブロックせず「不明」と表示し、rsync に任せます）
 - 転送中の `Ctrl-C` は安全に中断します（rsync を確実に停止し、次回は続きから再開できます）
+- CLI のオプションは TUI にも反映されます（`-n` / `--verify-only` / `--no-verify` / `--apfs` /
+  `-c` / `-x` / `--ignore-space-check` / `--no-caffeinate` / `-v` など）。`--job` は併用できません。
 
 > 詳しい使い方・出力の読み方・終了コードなどは bash 版 README と共通です:
 > <https://github.com/kazpc1215/safersync>
@@ -135,11 +138,14 @@ safersync --tui ~/写真 /Volumes/HDD/backup   # コピー元/先をプリフィ
 | 3 | 環境エラー（rsync 未検出、空き容量不足、差分・照合の実行不可など） |
 | 130 | `Ctrl-C` で中断 |
 
+TUI（対話ウィザード）も同じ体系で終了します。rsync の生の終了コード（例: 23・24）は
+契約外なので 1 に正規化し、24（転送中にファイルが消えた）は成功＋警告として扱います。
+
 ## 環境変数
 
 | 変数 | 説明 |
 |---|---|
-| `SAFERSYNC_MOUNT_ROOT` | 外付けボリュームの基点（`--mount-root` と同じ） |
+| `SAFERSYNC_MOUNT_ROOT` | 外付けボリュームの基点（`--mount-root` と同じ。既定は macOS が `/Volumes`、Linux が `/media/<user>` か `/run/media/<user>`） |
 | `SAFERSYNC_LOG_DIR` | ログの場所（既定: macOS は `~/Library/Logs/safersync`） |
 | `SAFERSYNC_THEME` | TUI の配色（`dark`（既定）/ `light` / `high-contrast`） |
 | `NO_COLOR` | 設定すると色を使わない（TUI・CLI 共通） |
@@ -163,8 +169,10 @@ make formula   # release の SHA256SUMS から Homebrew formula を生成（tap 
 変更点は [`CHANGELOG.md`](CHANGELOG.md) にまとめています。リリースのメモは GitHub Actions が
 自動生成します。
 
-`make release` の tarball はいずれも静的リンク（`CGO_ENABLED=0`）で、バージョンは
-`make VERSION=1.2.1` のように上書きできます。
+`make release` の tarball はいずれも静的リンク（`CGO_ENABLED=0`）です。バージョンの
+単一ソースは [`internal/version/VERSION`](internal/version/VERSION) で、Makefile と
+リリースワークフローもこのファイルを読みます（`make VERSION=1.2.1` のような
+コマンドライン上書きも可能です）。
 
 ## テスト契約
 
@@ -192,7 +200,7 @@ main.go                  エントリポイント
 internal/cli/            CLI の出力・引数解析・終了コード（bash 版 bin/safersync 相当）
 internal/core/           マウント判定・空き容量・rsync 実行・照合（bash 版 lib/core 相当）
 internal/tui/            対話ウィザード（Bubble Tea。bash 版 lib/tui 相当）
-internal/version/        バージョン（リリースビルドで -ldflags により上書き可）
+internal/version/        バージョン（VERSION ファイルが単一ソース）
 packaging/homebrew/      Homebrew tap 用 formula
 install.sh               リリース単一バイナリのインストーラ（curl | sh 用）
 ```

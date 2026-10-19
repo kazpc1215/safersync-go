@@ -29,12 +29,14 @@ const helpText = `safersync v%s - rsync の安全なラッパー（コピー →
   コピー元・コピー先にはリモート（user@host:/path、rsync://host/mod）も指定できます。
   ただしリモートは CLI のみです（対話ウィザードはローカルのみ）。
   リモートが絡む場合は、空き容量の確認とファイル数の集計を行いません
-  （リモート先の進捗はファイル件数で表示します）。
+  （進捗は rsync が報告する転送バイト数で表示します）。
   ローカルの名前に ":" を含む場合は、先頭に "./" を付けるとローカル扱いになります
   （例: ./撮影:2019）。
 
   引数なしで起動する（safersync）と、対話ウィザード（TUI）が開き、
   矢印キーだけでコピー元・コピー先を選べます。-i でも起動します。
+  ウィザードでも -n / --verify-only / --no-verify / --apfs / -c / -x /
+  --ignore-space-check / --no-caffeinate / -v などのオプションを反映します。
 
 例
   safersync ~/写真 /Volumes/HDD/写真
@@ -48,7 +50,7 @@ const helpText = `safersync v%s - rsync の安全なラッパー（コピー →
 
 オプション
   -i, --tui            対話ウィザード（TUI）を起動する。引数なしでも起動する
-      --mount-root DIR 外付けボリュームの基点（既定: /Volumes。例: /media/ユーザー名）
+      --mount-root DIR 外付けボリュームの基点（既定: macOS は /Volumes、Linux は /media/<user> か /run/media/<user>）
   -t, --to DIR         コピー先（位置引数と同じ。順序は自由）
   -f, --from DIR       コピー元（位置引数と同じ。順序は自由）
       --job SRC DST    複数ジョブを順次実行（繰り返し指定可）
@@ -73,7 +75,7 @@ const helpText = `safersync v%s - rsync の安全なラッパー（コピー →
   2 コピー先が未マウント / 3 空き容量不足（ほかに rsync 未検出・差分/照合の実行不可など） / 130 中断
 
 環境変数
-  SAFERSYNC_MOUNT_ROOT  外付けボリュームの基点（--mount-root と同じ）
+  SAFERSYNC_MOUNT_ROOT  外付けボリュームの基点（--mount-root と同じ。既定は OS による）
   SAFERSYNC_LOG_DIR     ログの場所（既定: macOS は ~/Library/Logs/safersync）
   SAFERSYNC_THEME       TUI の配色（dark 既定 / light / high-contrast）
   NO_COLOR              設定すると色を使わない（TUI・CLI 共通）
