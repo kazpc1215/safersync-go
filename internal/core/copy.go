@@ -61,28 +61,6 @@ func DrawProgress(pct int, done, total, speed, eta int64) string {
 	return b.String()
 }
 
-// DrawProgressFiles は件数ベースの進捗1行分（速度は「件/秒」）。
-// 現在の CLI / TUI は %l を使ったバイト進捗に統一しているため未使用だが、
-// 表示書式のテストと後方互換のため残している。
-func DrawProgressFiles(pct int, done, total int64, speed float64, eta int64) string {
-	var b strings.Builder
-	if width := progressWidth(); width > 0 {
-		filled := pct * width / 100
-		bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
-		b.WriteString("[" + bar + "] ")
-	}
-	etaTxt := "--"
-	if eta >= 0 {
-		etaTxt = "約 " + FmtDuration(eta)
-	}
-	tail := "  残り " + etaTxt
-	if pct >= 100 {
-		tail = ""
-	}
-	fmt.Fprintf(&b, "%3d%%  %d / %d ファイル  %.1f件/秒%s", pct, done, total, speed, tail)
-	return b.String()
-}
-
 // ---------------------------------------------------------------------------
 // rsync 実行ヘルパ
 // ---------------------------------------------------------------------------
@@ -350,18 +328,6 @@ func (c *transferredCounter) count() (files, bytes int64) {
 	return c.files, c.bytes
 }
 
-// countTransferred は転送された通常ファイル数だけを返す（後方互換の薄いラッパ）。
-func (c *transferredCounter) countTransferred() int64 {
-	files, _ := c.count()
-	return files
-}
-
-// countTransferredFiles は、転送された通常ファイルの行数（行頭が ">f"）を数える。
-// ディレクトリ作成（"cd..."）や属性のみの変化（".f..."）は数えない。
-func countTransferredFiles(path string) int64 {
-	return (&transferredCounter{path: path}).countTransferred()
-}
-
 func exitCodeOf(err error) int {
 	if err == nil {
 		return 0
@@ -435,32 +401,6 @@ func progressFrom(doneBytes, base, planBytes int64, start time.Time, now time.Ti
 		eta = (planBytes - gained) / speed
 	}
 	return p, doneBytes, speed, eta
-}
-
-// progressCountFrom は転送済みファイル数から進捗を計算する（件数ベース）。
-// 現在はバイト進捗に統一しているため未使用（後方互換のため残す）。
-// 速度は件/秒（小数）で返す。
-func progressCountFrom(doneFiles, planFiles int64, start time.Time, now time.Time) (p int, speed float64, eta int64) {
-	elapsed := int64(now.Sub(start).Seconds())
-	if elapsed < 1 {
-		elapsed = 1
-	}
-	if doneFiles < 0 {
-		doneFiles = 0
-	}
-	p = 100
-	if planFiles > 0 {
-		p = int(doneFiles * 100 / planFiles)
-	}
-	if p > 100 {
-		p = 100
-	}
-	speed = float64(doneFiles) / float64(elapsed)
-	eta = -1
-	if speed > 0 && planFiles > doneFiles {
-		eta = int64(float64(planFiles-doneFiles) / speed)
-	}
-	return p, speed, eta
 }
 
 // ensureLocalDest はローカルのコピー先フォルダを作る。リモート先（host:path）

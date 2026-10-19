@@ -428,58 +428,6 @@ func TestDrawProgress(t *testing.T) {
 	}
 }
 
-// リモート先の進捗（件数ベース）の描画。バイト版と同じ体裁で件数・件/秒を出す。
-func TestDrawProgressFiles(t *testing.T) {
-	t.Setenv("COLUMNS", "120")
-	s := DrawProgressFiles(50, 3, 6, 1.5, 2)
-	for _, want := range []string{"[", "█", "░", "50%", "3 / 6 ファイル", "1.5件/秒", "残り 約 2秒"} {
-		if !strings.Contains(s, want) {
-			t.Errorf("DrawProgressFiles に %q がない: %q", want, s)
-		}
-	}
-
-	// 狭い端末ではバーを出さない（折り返して崩れるため）
-	t.Setenv("COLUMNS", "40")
-	s = DrawProgressFiles(0, 0, 0, 0, -1)
-	if strings.Contains(s, "[") {
-		t.Errorf("狭い端末でバーを出している: %q", s)
-	}
-	if !strings.Contains(s, "残り --") {
-		t.Errorf("ETA 不明の表示がない: %q", s)
-	}
-
-	// 100% では残り時間を出さない
-	t.Setenv("COLUMNS", "120")
-	s = DrawProgressFiles(100, 6, 6, 2, 0)
-	if strings.Contains(s, "残り") {
-		t.Errorf("100%% で残り時間を出している: %q", s)
-	}
-}
-
-// countTransferredFiles は rsync の --out-format=%i から「転送された通常ファイル」
-// （行頭 ">f"）だけを数えること。ディレクトリ作成や属性のみの変化は数えない。
-func TestCountTransferredFiles(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "out")
-	content := strings.Join([]string{
-		"cd+++++++++ ./",
-		">f+++++++++ 5.00 a.txt",
-		".f...p..... b.txt", // 属性のみ → 数えない
-		">f         c.txt",  // 形式ゆれでも ">f" なら数える
-		">f+++++++++ d/e.txt",
-		"",
-	}, "\n")
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if got := countTransferredFiles(path); got != 3 {
-		t.Errorf("countTransferredFiles = %d, want 3", got)
-	}
-	// 読めないファイルは 0（進捗は 0 件として扱う）
-	if got := countTransferredFiles(filepath.Join(t.TempDir(), "missing")); got != 0 {
-		t.Errorf("存在しないファイルで %d, want 0", got)
-	}
-}
-
 // 追記分だけを数える（毎tickで全読みしない）。改行で終わっていない行は
 // 完成するまで数えない。
 func TestTransferredCounterIncremental(t *testing.T) {
@@ -489,8 +437,8 @@ func TestTransferredCounterIncremental(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &transferredCounter{path: path}
-	if got := c.countTransferred(); got != 1 {
-		t.Errorf("1回目 = %d, want 1（未完の行は数えない）", got)
+	if files, _ := c.count(); files != 1 {
+		t.Errorf("1回目 = %d, want 1（未完の行は数えない）", files)
 	}
 	// 未完の行が完成し、さらに1件追記される
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
@@ -501,37 +449,11 @@ func TestTransferredCounterIncremental(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Close()
-	if got := c.countTransferred(); got != 3 {
-		t.Errorf("2回目 = %d, want 3", got)
+	if files, _ := c.count(); files != 3 {
+		t.Errorf("2回目 = %d, want 3", files)
 	}
-	if got := c.countTransferred(); got != 3 {
-		t.Errorf("追記なしの3回目 = %d, want 3（二重に数えない）", got)
-	}
-}
-
-func TestProgressCountFrom(t *testing.T) {
-	start := time.Unix(1000, 0)
-	now := time.Unix(1010, 0) // 10 秒経過
-
-	// 100 / 200 件 = 50%、速度 10 件/秒、残り 10 秒
-	if p, speed, eta := progressCountFrom(100, 200, start, now); p != 50 || speed != 10 || eta != 10 {
-		t.Errorf("progressCountFrom = (%d, %v, %d), want (50, 10, 10)", p, speed, eta)
-	}
-	// 分母不明（0）は 100% 扱い・残りなし
-	if p, _, eta := progressCountFrom(0, 0, start, now); p != 100 || eta != -1 {
-		t.Errorf("plan=0: p=%d eta=%d, want 100, -1", p, eta)
-	}
-	// 分母を超えても 100% で止まる
-	if p, _, _ := progressCountFrom(50, 20, start, now); p != 100 {
-		t.Errorf("done>plan: p=%d, want 100", p)
-	}
-	// 経過 1 秒未満は 1 秒として扱う（0 除算しない）
-	if _, speed, _ := progressCountFrom(100, 200, now, now); speed != 100 {
-		t.Errorf("elapsed<1: speed=%v, want 100", speed)
-	}
-	// 小数の速度（2 秒で 1 件 = 0.5 件/秒）も表現できる
-	if _, speed, _ := progressCountFrom(1, 200, start, time.Unix(1002, 0)); speed != 0.5 {
-		t.Errorf("fractional speed: %v, want 0.5", speed)
+	if files, _ := c.count(); files != 3 {
+		t.Errorf("追記なしの3回目 = %d, want 3（二重に数えない）", files)
 	}
 }
 
