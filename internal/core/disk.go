@@ -152,9 +152,13 @@ type ScanResult struct {
 	Bytes int64
 }
 
-// ScanDir は dir を走査し、除外パターン（ファイル名の glob）に一致する場所を
-// まるごと枝ごと落として（bash 版 find -prune と同じ）、
-// ファイル数と合計バイト数を返す。走査中のエラー（権限など）は無視する。
+// ScanDir は dir を走査し、除外パターンに一致する場所をまるごと枝ごと落として
+// （bash 版 find -prune と同じ）、ファイル数と合計バイト数を返す。走査中の
+// エラー（権限など）は無視する。
+//
+// パターンの解釈は rsync の --exclude に寄せている（MatchExclude を参照）。
+// 以前はベース名への filepath.Match だけだったため、"sub/cache" や "cache/"、
+// "**" のようなパス依存のパターンで、転送（rsync）と走査の除外がずれていた。
 //
 // excludes はそのまま適用される（既定除外も含めた全パターンを渡す）。
 // Job からは Job.AllExcludePatterns() を渡す（既定除外の二重適用を防ぐ）。
@@ -172,19 +176,23 @@ func ScanDir(dir string, excludes []string) ScanResult {
 		}
 	}
 
-	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
 			}
 			return nil
 		}
-		if path == dir {
+		if p == dir {
 			return nil
 		}
-		name := d.Name()
+		rel, rerr := filepath.Rel(dir, p)
+		if rerr != nil {
+			rel = d.Name()
+		}
+		rel = filepath.ToSlash(rel)
 		for _, pat := range excl {
-			if ok, _ := filepath.Match(pat, name); ok {
+			if MatchExclude(pat, rel, d.IsDir()) {
 				if d.IsDir() {
 					return fs.SkipDir
 				}
