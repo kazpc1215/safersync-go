@@ -24,6 +24,10 @@ func VerifyOne(j *Job) int {
 	// --delete を付けないので、転送先の余分なファイルは差分として出ない
 	raw, err := j.CollectDiff("%i %n")
 	if err != nil {
+		if isInterrupted(err) {
+			fmt.Fprintln(j.Err, "中断しました")
+			return ExitInterrupted
+		}
 		// 差分を取れない状態で「照合 OK」と報告すると、コピー元を消してよいと
 		// 誤解させてしまうため、必ず失敗として扱う（終了コード 3）。
 		fmt.Fprintf(j.Err, "✗ 照合できませんでした: %s\n", err)

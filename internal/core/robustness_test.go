@@ -6,6 +6,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -144,5 +145,41 @@ func TestTransferTerminateKillsChild(t *testing.T) {
 	if err := syscall.Kill(pid, 0); err == nil {
 		_ = syscall.Kill(pid, syscall.SIGKILL)
 		t.Fatal("Terminate 後も子プロセスが残っている")
+	}
+}
+
+// 事前にキャンセルされたコンテキストでの差分スキャンは、環境エラーではなく
+// 中断として扱われること（終了コード 130）。
+func TestCopyOneInterruptedDiff(t *testing.T) {
+	if _, err := exec.LookPath("rsync"); err != nil {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	// 転送対象を1つ置き、rsync が確実に差分を返す状況にする。
+	src, dst := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "a.txt"), make([]byte, 4096), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // スキャン前に中断
+
+	var out, errOut bytes.Buffer
+	j := &Job{Src: src, Dst: dst, FAT: true, Ctx: ctx, Out: &out, Err: &errOut}
+	if rc := CopyOne(j); rc != ExitInterrupted {
+		t.Fatalf("want exit %d, got %d (stdout=%q stderr=%q)", ExitInterrupted, rc, out.String(), errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "中断しました") {
+		t.Errorf("中断メッセージが出ていない: %q", errOut.String())
+	}
+}
+
+func TestIsInterrupted(t *testing.T) {
+	if !isInterrupted(context.Canceled) {
+		t.Error("context.Canceled を中断と判定していない")
+	}
+	if !isInterrupted(context.DeadlineExceeded) {
+		t.Error("context.DeadlineExceeded を中断と判定していない")
+	}
+	if isInterrupted(context.WithValue(context.Background(), struct{}{}, 1).Err()) {
+		t.Error("nil エラーを中断と誤判定している")
 	}
 }

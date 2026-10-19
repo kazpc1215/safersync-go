@@ -184,6 +184,12 @@ func firstLine(s string) string {
 	return ""
 }
 
+// isInterrupted は、差分・照合のエラーがシグナル/キャンセルによる中断かどうかを返す。
+// 中断を「環境エラー」として扱うと、利用者に原因が伝わらないため区別する。
+func isInterrupted(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
 // Plan はコピーが必要なファイルの「件数・合計バイト数・一覧」。
 type Plan struct {
 	Files int

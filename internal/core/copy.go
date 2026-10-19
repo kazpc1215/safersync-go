@@ -447,6 +447,11 @@ func CopyOne(j *Job) int {
 	// 何件・何バイトコピーする必要があるかを先に調べる
 	plan := j.PlanChanges()
 	if plan.Err != nil {
+		// Ctrl-C / TERM などによる中断は、環境エラーではなく中断として返す
+		if isInterrupted(plan.Err) {
+			fmt.Fprintln(j.Err, "中断しました")
+			return ExitInterrupted
+		}
 		// 差分が確認できないまま進むと「すべて最新です」と誤報告してしまう
 		fmt.Fprintf(j.Err, "✗ 差分を確認できませんでした: %s\n", plan.Err)
 		fmt.Fprintln(j.Err, "✗ rsync が使えるか、コピー先に接続できるかを確認してから再実行してください。")

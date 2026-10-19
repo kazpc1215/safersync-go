@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/x/term"
@@ -115,6 +118,12 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	lastRC := 0
+	// 最初の差分スキャン（dry-run の rsync）は、コピー本体（runPlain /
+	// runWithProgress）より前に走る。ここでも Ctrl-C / TERM / HUP を効かせ、
+	// 大きなツリーのスキャン中に中断できるようにする（exec.CommandContext）。
+	ctx, stopSignals := signal.NotifyContext(context.Background(),
+		syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	defer stopSignals()
 	for idx, p := range pairs {
 		if len(pairs) > 1 {
 			fmt.Fprintf(stdout, "\n%s=== ジョブ %d/%d ===%s\n", c.bold, idx+1, len(pairs), c.reset)
@@ -193,6 +202,7 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			ShowProgress: showProgress,
 			NoCaffeinate: opts.NoCaffeinate,
 			DryRun:       opts.DryRun,
+			Ctx:          ctx,
 			Log:          core.LogMsg,
 			Out:          stdout,
 			Err:          stderr,
