@@ -14,6 +14,7 @@ class Safersync < Formula
   # version は URL から走査させる（明示すると「URL と重複」で audit に怒られる）
   desc "Rsync の安全なラッパー（コピー → 照合）。進捗・残り時間表示付き"
   homepage "https://github.com/kazpc1215/safersync-go"
+  license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?

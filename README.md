@@ -156,6 +156,10 @@ make release   # リリース物（dist/release/*.tar.gz + SHA256SUMS）
 make formula   # release の SHA256SUMS から Homebrew formula を生成（tap へコピーする用）
 ```
 
+## ライセンス
+
+[MIT License](LICENSE) です。
+
 変更点は [`CHANGELOG.md`](CHANGELOG.md) にまとめています。リリースのメモは GitHub Actions が
 自動生成します。
 
