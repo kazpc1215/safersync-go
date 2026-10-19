@@ -5,9 +5,9 @@ package core
 // 「フレームを呼び出し側が自前で取る」スタイル（Bubble Tea から呼ぶ）。
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -145,15 +145,51 @@ func (t *Transfer) CurrentFile() string {
 	if t.logFile == "" {
 		return ""
 	}
-	data, err := os.ReadFile(t.logFile)
+	return lastLine(t.logFile)
+}
+
+// lastLine は path の最後の空でない行を返す（無ければ空）。
+// 進捗表示から毎秒呼ばれるため、ログ全体は読まず末尾から遡って読む。
+func lastLine(path string) string {
+	f, err := os.Open(path)
 	if err != nil {
 		return ""
 	}
-	lines := strings.Split(string(data), "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
-		if line != "" {
-			return line
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return ""
+	}
+
+	const chunk = 64 << 10  // 一度に遡るサイズ
+	const maxRead = 1 << 20 // 空行が続いても読みすぎない上限
+	pos := fi.Size()
+	var read int64
+	buf := make([]byte, 0, chunk)
+	for pos > 0 && read < maxRead {
+		n := int64(chunk)
+		if pos < n {
+			n = pos
+		}
+		pos -= n
+		read += n
+		tmp := make([]byte, n)
+		if _, err := f.ReadAt(tmp, pos); err != nil {
+			return ""
+		}
+		buf = append(tmp, buf...)
+		lines := bytes.Split(buf, []byte{'\n'})
+		for i := len(lines) - 1; i >= 0; i-- {
+			line := bytes.TrimSpace(lines[i])
+			if len(line) == 0 {
+				continue
+			}
+			// buf の先頭行は途中で切れている可能性がある（読み残しがある）ため、
+			// そこしか見つからない場合はさらに前を読む。
+			if i == 0 && pos > 0 {
+				break
+			}
+			return string(line)
 		}
 	}
 	return ""
