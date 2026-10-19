@@ -101,15 +101,29 @@ func exists(p string) bool {
 
 // DestIsMounted は「コピー先がマウント基点の下にあるのに、そのボリュームが実
 // マウントされていなければ false」を返す。基点の外（~/ や /tmp）は判定しない。
+//
+// 判定対象は「基点の下にあるパス」だけ:
+//   - 基点そのもの（dst == mountRoot）は「下のボリューム」ではないため対象外（true）
+//   - mountRoot 自体が実マウントポイントのときは、その直下も対象内として扱う
 func DestIsMounted(dst, mountRoot string) bool {
 	if mountRoot == "/" {
 		return true
+	}
+	if dst == mountRoot {
+		return true // 基点そのものはボリューム判定の対象外
 	}
 	if !strings.HasPrefix(dst, mountRoot+"/") {
 		return true // 基点の下ではない → 対象外
 	}
 	mp := MountPointOf(dst)
-	return strings.HasPrefix(mp, mountRoot+"/")
+	return destIsMountedAt(mp, mountRoot)
+}
+
+// destIsMountedAt は、コピー先の実マウントポイント mp が基点 mountRoot の
+// 下（または基点そのもの）かを返す純関数。mp == mountRoot を含めることで、
+// 基点自体が実マウントポイントのときにその直下を「未マウント」と誤判定しない。
+func destIsMountedAt(mp, mountRoot string) bool {
+	return mp == mountRoot || strings.HasPrefix(mp, mountRoot+"/")
 }
 
 // ---------------------------------------------------------------------------

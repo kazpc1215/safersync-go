@@ -214,6 +214,24 @@ func TestDestIsMounted(t *testing.T) {
 	if !DestIsMounted(root, root) {
 		t.Error("基点そのものは判定対象外のはず")
 	}
+
+	// 実マウントポイントと基点の関係（純関数）。基点自体がマウントポイントの
+	// ときも、その直下を未マウントと誤判定しない。
+	cases := []struct {
+		mp, base string
+		want     bool
+	}{
+		{"/Volumes/HDD", "/Volumes", true},
+		{"/Volumes/HDD/sub", "/Volumes", true},
+		{"/Volumes", "/Volumes", true}, // 基点自体がマウントポイント
+		{"/", "/Volumes", false},       // 基点の下に実マウントが無い
+		{"/mnt", "/Volumes", false},
+	}
+	for _, c := range cases {
+		if got := destIsMountedAt(c.mp, c.base); got != c.want {
+			t.Errorf("destIsMountedAt(%q, %q) = %v, want %v", c.mp, c.base, got, c.want)
+		}
+	}
 }
 
 func TestVolumes(t *testing.T) {
