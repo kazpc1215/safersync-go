@@ -50,26 +50,31 @@ func DefaultMountRoot() string {
 // 同じ場合は bind mount の可能性があるため、`mount` の出力も照合する
 // （bash 版と同じ表記。Linux の \040 エスケープにも対応）。
 func IsMountPoint(path string) bool {
+	is, _ := isMountPointKnown(path)
+	return is
+}
+
+// isMountPointKnown は IsMountPoint の判定と、判定できたかどうかを返す。
+// statfs も mount コマンドも使えない環境では known=false になる。
+func isMountPointKnown(path string) (is, known bool) {
 	fi, err := os.Stat(path)
 	if err != nil || !fi.IsDir() {
-		return false
+		return false, true // 存在しない・ディレクトリでないことは確定
 	}
 	if path == "/" {
-		return true
+		return true, true
 	}
-	if known, is := mountPointByFsid(path); known {
-		if is {
-			return true
+	if knownFs, byFs := mountPointByFsid(path); knownFs {
+		if byFs {
+			return true, true
 		}
-		// 同じ fsid でも bind mount かもしれないため mount 出力で確認する。
-	} else {
-		// statfs が使えない環境では従来どおり mount 出力だけで判定する。
+		// 同じ fsid でも bind mount かもしれないため mount 出力を確認する。
 	}
 	out, err := exec.Command("mount").Output()
 	if err != nil {
-		return false
+		return false, false
 	}
-	return containsMountPoint(string(out), path)
+	return containsMountPoint(string(out), path), true
 }
 
 // mountPointByFsid は statfs の Fsid を親と比較する。
@@ -131,16 +136,28 @@ func Dirname(p string) string {
 // MountPointOf はパス（存在しなければ最も近い既存の祖先）から上へたどり、
 // 最初に見つかる実マウントポイントを返す。見つからなければ "/"。
 func MountPointOf(p string) string {
+	if mp, known := mountPointOf(p); known {
+		return mp
+	}
+	return "/" // 判定できない場合は従来どおり root 扱い
+}
+
+// mountPointOf は MountPointOf の本体。判定できたかどうかも返す。
+func mountPointOf(p string) (mp string, known bool) {
 	p = AbsPath(p) // 相対パスはカレント基準にそろえる（"." のまま上れなくなるのを防ぐ）
 	for !exists(p) && p != "/" {
 		p = Dirname(p)
 	}
 	for {
-		if IsMountPoint(p) {
-			return p
+		is, ok := isMountPointKnown(p)
+		if !ok {
+			return "", false
+		}
+		if is {
+			return p, true
 		}
 		if p == "/" {
-			return "/"
+			return "/", true
 		}
 		p = Dirname(p)
 	}
@@ -167,7 +184,12 @@ func DestIsMounted(dst, mountRoot string) bool {
 	if !strings.HasPrefix(dst, mountRoot+"/") {
 		return true // 基点の下ではない → 対象外
 	}
-	mp := MountPointOf(dst)
+	mp, known := mountPointOf(dst)
+	if !known {
+		// マウント状態を判定できない環境（mount が無い等）では、利用者の
+		// 正当なコピーをブロックしないようマウント済みとして扱う。
+		return true
+	}
 	return destIsMountedAt(mp, mountRoot)
 }
 
@@ -183,29 +205,43 @@ func destIsMountedAt(mp, mountRoot string) bool {
 // ---------------------------------------------------------------------------
 
 // FreeBytes は指定パス（存在しなければ最も近い既存の祖先）の空き容量をバイトで返す。
-// bash 版 free_bytes（df -k の使用可能ブロック × 1024）と同じ値になる。
-// 取得できない場合は 0。
+// 取得できない場合は 0（不明と 0 バイトの区別が必要なときは FreeBytesOK を使う）。
 func FreeBytes(p string) int64 {
-	for !exists(p) && p != "/" {
-		p = Dirname(p)
-	}
-	var st syscall.Statfs_t
-	if err := syscall.Statfs(p, &st); err != nil {
-		return 0
-	}
-	return int64(st.Bavail) * int64(st.Bsize)
+	free, _ := FreeBytesOK(p)
+	return free
 }
 
-// TotalBytes は指定パスの総容量をバイトで返す（FreeBytes と対で使う）。
-func TotalBytes(p string) int64 {
+// FreeBytesOK は空き容量と、取得できたかどうかを返す。
+// 取得できない場合に 0 を「空き 0 バイト」と誤解すると、コピーを誤って
+// 中止したり、逆に空き不足を見落としたりするため区別できるようにする。
+func FreeBytesOK(p string) (int64, bool) {
 	for !exists(p) && p != "/" {
 		p = Dirname(p)
 	}
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(p, &st); err != nil {
-		return 0
+		return 0, false
 	}
-	return int64(st.Blocks) * int64(st.Bsize)
+	return int64(st.Bavail) * int64(st.Bsize), true
+}
+
+// TotalBytes は指定パスの総容量をバイトで返す。取得できない場合は 0
+// （不明と 0 バイトの区別が必要なときは TotalBytesOK を使う）。
+func TotalBytes(p string) int64 {
+	total, _ := TotalBytesOK(p)
+	return total
+}
+
+// TotalBytesOK は総容量と、取得できたかどうかを返す。
+func TotalBytesOK(p string) (int64, bool) {
+	for !exists(p) && p != "/" {
+		p = Dirname(p)
+	}
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(p, &st); err != nil {
+		return 0, false
+	}
+	return int64(st.Blocks) * int64(st.Bsize), true
 }
 
 // ---------------------------------------------------------------------------

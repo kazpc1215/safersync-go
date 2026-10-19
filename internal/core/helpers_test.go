@@ -785,3 +785,18 @@ func TestMountPointByFsid(t *testing.T) {
 		t.Error("存在しないパスで statfs が成功扱いになった")
 	}
 }
+
+// 空き容量・総容量は取得可否を区別できる（0 バイトと不明を混同しない）。
+func TestFreeAndTotalBytesOK(t *testing.T) {
+	free, ok := FreeBytesOK("/")
+	if !ok {
+		t.Fatal("FreeBytesOK(/) が失敗した")
+	}
+	if free < 0 {
+		t.Errorf("空き容量が負: %d", free)
+	}
+	total, ok := TotalBytesOK("/")
+	if !ok || total <= 0 {
+		t.Errorf("TotalBytesOK(/) = %d, %v", total, ok)
+	}
+}

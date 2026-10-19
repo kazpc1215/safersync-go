@@ -106,12 +106,13 @@ type model struct {
 	extraExcludes []string
 
 	// プレビュー・転送の結果
-	free    int64
-	plan    core.Plan
-	srcScan core.ScanResult
-	spaceOK bool
-	mounted bool
-	warnMP  bool
+	free      int64
+	freeKnown bool
+	plan      core.Plan
+	srcScan   core.ScanResult
+	spaceOK   bool
+	mounted   bool
+	warnMP    bool
 
 	// 実行中表示（転送フレーム）
 	frame frameMsg
@@ -175,6 +176,7 @@ func newModelWithOptions(opts *core.Options, mountRoot, from, to string) *model 
 		optIgnoreSpace: opts.IgnoreSpaceCheck,
 		optVerbose:     opts.Stats,
 		extraExcludes:  append([]string{}, opts.Excludes...),
+		freeKnown:      true, // 取得失敗時に planReady で false になる
 		returnTo:       stSource,
 		stage:          stSource,
 		logFile:        core.LogFile(),
@@ -290,9 +292,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.srcScan = core.ScanResult{Files: msg.srcFiles, Bytes: msg.srcBytes}
 		m.plan = msg.plan
-		free := core.FreeBytes(m.dst)
+		free, ok := core.FreeBytesOK(m.dst)
 		m.free = free
-		m.spaceOK = free >= m.plan.Bytes
+		m.freeKnown = ok
+		m.spaceOK = !ok || free >= m.plan.Bytes
 		m.mounted = core.DestIsMounted(m.dst, m.mountRoot)
 		m.warnMP = core.IsMountPoint(m.dst)
 		m.stage = stPreview

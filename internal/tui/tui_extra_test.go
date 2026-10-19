@@ -520,3 +520,19 @@ func TestTUIExitCodeNormalization(t *testing.T) {
 		t.Errorf("rc=24 の finalRC = %d, want 1", gm.finalRC)
 	}
 }
+
+// 空き容量が取得できないときは「不足」と決めつけず「不明」と表示し、開始も許可する。
+func TestPreviewHeaderLines_unknownSpace(t *testing.T) {
+	m := tbase()
+	m.freeKnown = false
+	m.free = 0
+	m.spaceOK = true
+	m.src, m.dst = "/src", "/dst"
+	body := strings.Join(m.previewHeaderLines(), "\n")
+	if !strings.Contains(body, "空き容量を確認できません") {
+		t.Errorf("不明の案内が無い:\n%s", body)
+	}
+	if strings.Contains(body, "不足") {
+		t.Errorf("不明を不足と誤表示している:\n%s", body)
+	}
+}

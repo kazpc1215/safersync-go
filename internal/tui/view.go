@@ -270,7 +270,10 @@ func (m model) previewHeaderLines() []string {
 		skipb = 0
 	}
 	spaceMsg := "十分な空きがあります"
-	if !m.spaceOK {
+	switch {
+	case !m.freeKnown:
+		spaceMsg = "空き容量を確認できません"
+	case !m.spaceOK:
 		spaceMsg = "空き容量が不足しています"
 	}
 	lines := []string{
@@ -283,7 +286,7 @@ func (m model) previewHeaderLines() []string {
 		"  ・転送対象: " + itoa(m.plan.Files) + " ファイル（" + core.FmtBytes(m.plan.Bytes) + "）",
 		"  ・実行が必要な変更: " + itoa(m.plan.Changes) + " 件（シンボリックリンク・属性など）",
 		"  ・スキップ: " + itoa(skip) + " ファイル（" + core.FmtBytes(skipb) + " - すでに転送済み）",
-		"  ・転送先空き: " + core.FmtBytes(m.free) + "  [" + spaceMsg + "]",
+		"  ・転送先空き: " + freeText(m.freeKnown, m.free) + "  [" + spaceMsg + "]",
 	}
 	if !m.mounted {
 		lines = append(lines, "注意: コピー先のボリュームがマウントされていません")
@@ -293,6 +296,14 @@ func (m model) previewHeaderLines() []string {
 	}
 	lines = append(lines, "")
 	return lines
+}
+
+// freeText は空き容量（不明なら「不明」）の表示文字列を返す。
+func freeText(known bool, free int64) string {
+	if !known {
+		return "不明"
+	}
+	return core.FmtBytes(free)
 }
 
 // dashboardLines は転送ダッシュボード（bash 版 tui_render_dashboard と同じ構成）。

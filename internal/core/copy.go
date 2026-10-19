@@ -539,7 +539,11 @@ func CopyOne(j *Job) int {
 	case IsRemote(j.Dst):
 		fmt.Fprintln(j.Out, "    リモート先の空き容量は確認できません（rsync に任せます）")
 	default:
-		if free := FreeBytes(j.Dst); free > 0 && plan.Bytes > free {
+		free, ok := FreeBytesOK(j.Dst)
+		switch {
+		case !ok:
+			fmt.Fprintln(j.Err, "! 空き容量を確認できませんでした（rsync に任せます）")
+		case plan.Bytes > free:
 			fmt.Fprintf(j.Err, "✗ 空き容量が足りません: コピーする量 %s / 空き %s\n",
 				FmtBytes(plan.Bytes), FmtBytes(free))
 			fmt.Fprintln(j.Err, "✗ 不要なファイルを削除するか、別の保存先を指定してください。")
