@@ -1,6 +1,6 @@
 # safersync (Go 版) ビルド用 Makefile
 APP     := safersync
-VERSION := 1.5.2
+VERSION := 1.5.3
 DIST    := dist
 
 # ターゲット: このMac (darwin/amd64), Apple Silicon, Linux x86_64/ARM64

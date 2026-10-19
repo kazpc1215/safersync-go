@@ -3,6 +3,22 @@
 本プロジェクトの主な変更点を記録します。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、
 バージョニングは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [1.5.3] - 2026-10-19
+
+Go のソースに変更はなく、CI・配布まわりのメンテナンスリリースです。
+
+### 変更
+
+- インストーラ（`install.sh`）を CI で検証するようにしました。その場で tarball と
+  `SHA256SUMS` を作り、`file://` ミラー経由で導入・`--version` の一致・不正バージョンの
+  拒否までを通すスモークテスト（`scripts/test-install.sh`）を追加し、`shellcheck` も
+  かけます
+- GitHub Actions の Release ビルドを Linux ランナー（`ubuntu-24.04`）へ移しました
+  （`sha256sum` 対応により macOS を選んでいた理由が解消したため）
+- Dependabot を追加し、Go の依存と GitHub Actions の更新を自動で追随できるように
+  しました（major は個別 PR、minor / patch はグループ化）
+- README の配布手順（手動配置の例・Homebrew 節）を実態に合わせました
+
 ## [1.5.2] - 2026-10-19
 
 Go のソースに変更はなく、機能差のない CI/CD のメンテナンスリリースです。
@@ -128,7 +144,8 @@ Go のソースに変更はなく、機能差のない CI/CD のメンテナン�
 個々の変更はリリースノートと git 履歴を参照してください:
 <https://github.com/kazpc1215/safersync-go/releases>
 
-[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.5.2...HEAD
+[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/kazpc1215/safersync-go/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/kazpc1215/safersync-go/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/kazpc1215/safersync-go/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/kazpc1215/safersync-go/compare/v1.4.2...v1.5.0
