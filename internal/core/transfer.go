@@ -113,12 +113,17 @@ func (t *Transfer) Wait() int {
 // LogFile は rsync 出力の一時ファイルパスを返す。
 func (t *Transfer) LogFile() string { return t.logFile }
 
-// Cleanup は rsync 出力の一時ファイルを削除する。開いたままでも削除でき
-// （close された時点で消える）、TUI の終了時や転送の再試行時に呼ぶ。
+// Cleanup は rsync 出力の一時ファイルを閉じて削除する。
+// TUI の終了時や転送の再試行時に呼ぶ。Wait が呼ばれなかった場合でも
+// ファイルディスクリプタを残さないよう、ここでも Close する。
 // 二重に呼んでも実害はない。
 func (t *Transfer) Cleanup() {
+	if t.log != nil {
+		_ = t.log.Close()
+		t.log = nil
+	}
 	if t.logFile != "" {
-		os.Remove(t.logFile)
+		_ = os.Remove(t.logFile)
 	}
 }
 
