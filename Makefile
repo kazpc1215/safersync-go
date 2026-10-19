@@ -50,7 +50,11 @@ $(TARGETS):
 
 # リリース物の作成: 各プラットフォームの tarball + SHA256SUMS
 #   dist/release/safersync-$(VERSION)-<os>-<arch>.tar.gz
-release: clean $(TARGETS) ## リリース用 tarball + チェックサムを dist/release/ へ
+release: ## リリース用 tarball + チェックサムを dist/release/ へ
+	@# clean と $(TARGETS) を前提条件にすると `make -j` で並行実行され、
+	@# clean がビルド中の成果物を消してしまう。再帰 make で直列に実行する。
+	@$(MAKE) --no-print-directory clean
+	@$(MAKE) --no-print-directory $(TARGETS)
 	@rm -rf $(DIST)/release; mkdir -p $(DIST)/release
 	@for d in $(DIST)/*/; do \
 	  base=$$(basename "$$d"); \
