@@ -152,6 +152,18 @@ func TestLogMsgRotation(t *testing.T) {
 	}
 }
 
+func TestLogMsgPermissions(t *testing.T) {
+	t.Setenv("SAFERSYNC_LOG_DIR", t.TempDir())
+	LogMsg("hello")
+	fi, err := os.Stat(LogFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o600 {
+		t.Errorf("ログの権限 = %o, want 600", got)
+	}
+}
+
 func TestPlanChangesBasic(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()

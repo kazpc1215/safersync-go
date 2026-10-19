@@ -52,7 +52,9 @@ func saveHistory(src, dst string) {
 	if src == "" {
 		return
 	}
-	_ = os.MkdirAll(filepath.Dir(historyPath()), 0o755)
+	_ = os.MkdirAll(filepath.Dir(historyPath()), 0o700)
 	data, _ := json.Marshal(tuiHistory{Src: src, Dst: dst})
-	_ = os.WriteFile(historyPath(), data, 0o644)
+	path := historyPath()
+	_ = os.WriteFile(path, data, 0o600)
+	_ = os.Chmod(path, 0o600)
 }

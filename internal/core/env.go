@@ -214,16 +214,19 @@ func LogMsg(msg string) {
 	logMu.Lock()
 	defer logMu.Unlock()
 
-	_ = os.MkdirAll(LogDir(), 0o755)
+	_ = os.MkdirAll(LogDir(), 0o700)
 	path := LogFile()
 	if fi, err := os.Stat(path); err == nil && fi.Size() > logMaxBytes {
 		_ = os.Remove(path + ".1")
 		_ = os.Rename(path, path+".1")
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return
 	}
 	defer f.Close()
+	// 既存ファイルが 0644 で作られていた場合も絞る（OpenFile のモードは
+	// 新規作成時にしか効かないため）。
+	_ = os.Chmod(path, 0o600)
 	fmt.Fprintf(f, "%s\t%s\n", time.Now().Format("2006-01-02 15:04:05"), msg)
 }

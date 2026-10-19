@@ -630,3 +630,17 @@ func TestBrowseEntriesIncludesSymlinkDir(t *testing.T) {
 		t.Error("リンク切れが一覧に出ている")
 	}
 }
+
+// 前回パスの保存ファイルは 0600（他ユーザーから読めない）にする。
+func TestSaveHistoryPermissions(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", dir)
+	saveHistory("/src", "/dst")
+	fi, err := os.Stat(historyPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o600 {
+		t.Errorf("履歴の権限 = %o, want 600", got)
+	}
+}
