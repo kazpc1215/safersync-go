@@ -301,8 +301,12 @@ func (m model) previewHeaderLines() []string {
 	}
 	spaceMsg := "十分な空きがあります"
 	switch {
+	case m.optDryRun || m.optVerifyOnly:
+		spaceMsg = "このモードでは空き容量を使いません"
 	case !m.freeKnown:
 		spaceMsg = "空き容量を確認できません"
+	case m.optIgnoreSpace && m.free < m.plan.Bytes:
+		spaceMsg = "空き容量が不足しています（--ignore-space-check で続行）"
 	case !m.spaceOK:
 		spaceMsg = "空き容量が不足しています"
 	}
@@ -390,7 +394,9 @@ func (m model) doneLines() []string {
 		status = stErr.Render("エラーが発生しました（終了コード " + itoa(m.finalRC) + "）")
 		verifyTxt = stWarn.Render("不一致または失敗（ログを確認してください）")
 	}
-	if m.plan.Changes == 0 && m.plan.Files == 0 {
+	if m.optVerifyOnly {
+		status = "照合のみ実行しました（コピーはしていません）"
+	} else if m.plan.Changes == 0 && m.plan.Files == 0 {
 		status = "転送するものはありませんでした（すべて最新）"
 	}
 	if m.dryRun {

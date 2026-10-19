@@ -297,7 +297,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		free, ok := core.FreeBytesOK(m.dst)
 		m.free = free
 		m.freeKnown = ok
-		m.spaceOK = !ok || free >= m.plan.Bytes
+		// dry-run / 照合のみは空き容量を使わない。--ignore-space-check は
+		// CLI と同じく不足時も続行する（不明時はブロックしない）。
+		m.spaceOK = m.optDryRun || m.optVerifyOnly || m.optIgnoreSpace || !ok || free >= m.plan.Bytes
 		m.mounted = core.DestIsMounted(m.dst, m.mountRoot)
 		m.warnMP = core.IsMountPoint(m.dst)
 		m.stage = stPreview

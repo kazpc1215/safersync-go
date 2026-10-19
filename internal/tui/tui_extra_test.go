@@ -644,3 +644,25 @@ func TestSaveHistoryPermissions(t *testing.T) {
 		t.Errorf("履歴の権限 = %o, want 600", got)
 	}
 }
+
+// dry-run / 照合のみ / --ignore-space-check は空き容量不足でも開始をブロックしない。
+func TestPlanReadySpaceBypass(t *testing.T) {
+	cases := []struct {
+		name string
+		set  func(*model)
+	}{
+		{"dry-run", func(m *model) { m.optDryRun = true }},
+		{"verify-only", func(m *model) { m.optVerifyOnly = true }},
+		{"ignore-space-check", func(m *model) { m.optIgnoreSpace = true }},
+	}
+	for _, c := range cases {
+		m := tbase()
+		m.dst = t.TempDir()
+		c.set(m)
+		nm, _ := m.Update(planReadyMsg{plan: core.Plan{Files: 1, Changes: 1, Bytes: 1 << 60}})
+		gm := nm.(*model)
+		if !gm.spaceOK {
+			t.Errorf("%s: 空き容量不足でブロックしている", c.name)
+		}
+	}
+}

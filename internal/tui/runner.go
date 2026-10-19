@@ -45,6 +45,9 @@ func (m model) footerOf() string {
 	case stOptions:
 		return "[↑/↓] 移動   [Space] 切り替え   [Enter] 次へ   [Esc] 戻る"
 	case stPreview:
+		if m.previewTab != 0 && !m.showFileList {
+			return "[↑/↓] 詳細スクロール   [←/→] 項目   [Tab] 切替   [Enter] 決定   [Esc] 戻る"
+		}
 		return "[←/→ でも ↑/↓ でも可] [Enter] 決定   [Esc] 戻る"
 	case stDone:
 		return "[Enter] 終了"
