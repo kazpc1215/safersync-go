@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/kazpc1215/safersync/internal/core"
 )
@@ -293,5 +294,64 @@ func TestCheckDst_insideSource(t *testing.T) {
 	}
 	if got := m.checkDst(t.TempDir()); got != "" {
 		t.Errorf("正常なコピー先を拒否した: %q", got)
+	}
+}
+
+// SAFERSYNC_THEME / NO_COLOR のテーマ解決（NO_COLOR が最優先、未知は dark）
+func TestThemeName(t *testing.T) {
+	cases := []struct {
+		theme   string
+		noColor bool
+		want    string
+	}{
+		{"", false, "dark"},
+		{"dark", false, "dark"},
+		{"light", false, "light"},
+		{"high-contrast", false, "high-contrast"},
+		{"unknown", false, "dark"},
+		{"light", true, "none"},
+		{"high-contrast", true, "none"},
+		{"", true, "none"},
+	}
+	for _, c := range cases {
+		if got := themeName(c.theme, c.noColor); got != c.want {
+			t.Errorf("themeName(%q, %v) = %q, want %q", c.theme, c.noColor, got, c.want)
+		}
+	}
+}
+
+// NO_COLOR ではテーマに関わらず ANSI を付けない
+func TestApplyThemeNoColor(t *testing.T) {
+	defer applyTheme("", false) // dark に戻す
+	applyTheme("high-contrast", true)
+	if got := stTitle.Render("x"); got != "x" {
+		t.Errorf("NO_COLOR なのに stTitle が色付き: %q", got)
+	}
+	if got := stErr.Render("x"); got != "x" {
+		t.Errorf("NO_COLOR なのに stErr が色付き: %q", got)
+	}
+	if !themeNoColor {
+		t.Error("themeNoColor が立っていない")
+	}
+}
+
+// NO_COLOR では進捗バーにも色を付けない（以前はここだけ色が残っていた）
+func TestProgressBarNoColor(t *testing.T) {
+	defer applyTheme("", false)
+	applyTheme("", true)
+	got := progressBar(50, 10)
+	if strings.Contains(got, "\x1b") {
+		t.Errorf("NO_COLOR なのに進捗バーが ANSI を含む: %q", got)
+	}
+	if got != strings.Repeat("█", 5)+strings.Repeat("░", 5) {
+		t.Errorf("NO_COLOR の進捗バー = %q", got)
+	}
+	if w := lipgloss.Width(got); w != 10 {
+		t.Errorf("進捗バーの幅が 10 でない: %d (%q)", w, got)
+	}
+	// 色ありのときも幅は同じ（色は幅に数えない）
+	applyTheme("", false)
+	if w := lipgloss.Width(progressBar(0, 10)); w != 10 {
+		t.Errorf("色ありの進捗バーの幅が 10 でない: %d", w)
 	}
 }

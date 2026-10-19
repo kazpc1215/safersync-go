@@ -70,6 +70,10 @@ func ExpandTilde(p string) string {
 }
 
 // IsRemote は rsync のリモートパス（host:path / user@host:path / rsync://）かどうかを返す。
+//
+// 判定は rsync と同じで、最初のスラッシュ（またはバックスラッシュ）より前に ":" が
+// あればリモート扱いにする。したがってローカルのファイル名に ":" が含まれる場合は、
+// "./name:tag" のように先頭へ "./" を付けるとローカルとして扱える（rsync と同じ回避策）。
 func IsRemote(p string) bool {
 	if strings.HasPrefix(p, "rsync://") {
 		return true

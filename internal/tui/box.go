@@ -11,16 +11,35 @@ import (
 )
 
 func init() {
-	if os.Getenv("NO_COLOR") != "" {
+	applyTheme(os.Getenv("SAFERSYNC_THEME"), os.Getenv("NO_COLOR") != "")
+}
+
+// themeName は SAFERSYNC_THEME を正規化する。NO_COLOR が設定されていれば
+// テーマに関わらず配色なし（"none"）を優先する。未知のテーマは dark。
+func themeName(theme string, noColor bool) string {
+	if noColor {
+		return "none"
+	}
+	switch theme {
+	case "light", "high-contrast":
+		return theme
+	default:
+		return "dark"
+	}
+}
+
+// applyTheme はテーマに応じて画面スタイルを設定する。
+// init から環境変数で呼ばれるほか、テストからも直接呼べる。
+func applyTheme(theme string, noColor bool) {
+	themeNoColor = noColor
+	switch themeName(theme, noColor) {
+	case "none":
 		stTitle = lipgloss.NewStyle()
 		stCursor = lipgloss.NewStyle()
 		stOk = lipgloss.NewStyle()
 		stWarn = lipgloss.NewStyle()
 		stErr = lipgloss.NewStyle()
 		stDim = lipgloss.NewStyle()
-		return
-	}
-	switch os.Getenv("SAFERSYNC_THEME") {
 	case "light":
 		stTitle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0"))
 		stCursor = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
@@ -35,8 +54,14 @@ func init() {
 		stWarn = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11"))
 		stErr = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9"))
 		stDim = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
+	default: // dark（既定）
+		stTitle = lipgloss.NewStyle().Bold(true)
+		stCursor = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "4", Dark: "12"}) // 青
+		stOk = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "2", Dark: "10"})     // 緑
+		stWarn = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "3", Dark: "11"})   // 黄
+		stErr = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "1", Dark: "9"})     // 赤
+		stDim = lipgloss.NewStyle().Faint(true)
 	}
-	// dark (default) はパッケージ変数の初期値を使用
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +197,10 @@ func progressBar(pct, w int) string {
 		pct = 100
 	}
 	filled := pct * w / 100
+	// NO_COLOR のときは色を付けず、バーだけ描く。
+	if themeNoColor {
+		return strings.Repeat("█", filled) + strings.Repeat("░", w-filled)
+	}
 	// 進捗に応じて色を変える（0-50: 青, 50-90: 黄, 90-100: 緑）
 	color := "12" // 青
 	switch {
@@ -185,11 +214,10 @@ func progressBar(pct, w int) string {
 }
 
 // スタイル（画面に少し彩りを added。非TTYでは ANSI は出ない）
+// init の applyTheme がテーマに応じて設定する（既定は dark）。
 var (
-	stTitle  = lipgloss.NewStyle().Bold(true)
-	stCursor = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "4", Dark: "12"}) // 青
-	stOk     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "2", Dark: "10"}) // 緑
-	stWarn   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "3", Dark: "11"}) // 黄
-	stErr    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "1", Dark: "9"})  // 赤
-	stDim    = lipgloss.NewStyle().Faint(true)
+	stTitle, stCursor, stOk, stWarn, stErr, stDim lipgloss.Style
+	// themeNoColor は NO_COLOR により配色を無効化しているか。
+	// progressBar など、テーマ変数を通さず色を組み立てる箇所で参照する。
+	themeNoColor bool
 )

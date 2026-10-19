@@ -89,6 +89,35 @@ func TestRsyncArgsListFiles(t *testing.T) {
 	}
 }
 
+// IsRemote の判定は rsync と同じ規則（最初の "/" より前の ":"）であること。
+func TestIsRemote_edgeCases(t *testing.T) {
+	remote := []string{
+		"host:/abs/path",
+		"host::module", // デーモン構文
+		"rsync://user@host/module/sub",
+		":hostless", // ホスト名が空でも rsync はリモート扱い
+	}
+	for _, p := range remote {
+		if !IsRemote(p) {
+			t.Errorf("IsRemote(%q) = false, want true", p)
+		}
+	}
+	local := []string{
+		"",
+		"/abs/with:colon/path", // 最初の "/" より後の ":" はローカル
+		"./weird:name",         // "./" でエスケープ（rsync と同じ回避策）
+		"./2019-05-01_12:30:45",
+		"~/dir",
+		"dir/sub:file",
+		"rsync_local", // "rsync://" ではない
+	}
+	for _, p := range local {
+		if IsRemote(p) {
+			t.Errorf("IsRemote(%q) = true, want false", p)
+		}
+	}
+}
+
 func TestLogMsgRotation(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("SAFERSYNC_LOG_DIR", dir)
