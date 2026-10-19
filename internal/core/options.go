@@ -28,7 +28,6 @@ type Options struct {
 
 	// オプション
 	MountRoot        string   // 外付けボリュームの基点（既定 /Volumes、--mount-root・環境変数で上書き）
-	LogDir           string   // ログの場所（SAFERSYNC_LOG_DIR。未指定なら OS 既定）
 	Excludes         []string // 追加除外パターン（--exclude、複数可）
 	FAT              bool     // exFAT/FAT（既定）: 属性差を比較しない
 	APFS             bool     // APFS/HFS+: 属性も保持・比較する
