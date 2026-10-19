@@ -33,8 +33,8 @@ jobs:
       - name: タグとバージョンの一致を確認
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          if [ "$TAG" != "$(grep -m1 'VERSION := ' Makefile | cut -d' ' -f3)" ]; then
-            echo "✗ タグ v$TAG と Makefile の VERSION が一致しません" >&2
+          if [ "$TAG" != "$(cat internal/version/VERSION | tr -d '[:space:]')" ]; then
+            echo "✗ タグ v$TAG と internal/version/VERSION が一致しません" >&2
             exit 1
           fi
       - name: リリース物のビルド（tarball + SHA256SUMS）

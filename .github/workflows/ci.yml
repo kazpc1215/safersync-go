@@ -80,7 +80,7 @@ jobs:
           rm /tmp/ss-bats/bin/safersync
           go build -o /tmp/ss-bats/bin/safersync .
           # bash 版テストは --version の期待値を v1.2.0 で固定している。
-          # bash 版は凍結済みのため、ここで Makefile VERSION の期待値へ差し替える。
-          VERSION=$(grep -m1 'VERSION := ' Makefile | cut -d' ' -f3)
+          # bash 版は凍結済みのため、ここで VERSION ファイルの期待値へ差し替える。
+          VERSION=$(cat internal/version/VERSION | tr -d '[:space:]')
           sed -i '' -e "s/v1\.2\.0/v$VERSION/g" /tmp/ss-bats/test/*.bats
           bats /tmp/ss-bats/test/*.bats

@@ -14,9 +14,9 @@ root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-ver=$(sed -n 's/^VERSION := //p' "$root/Makefile" | head -1)
+ver=$(tr -d '[:space:]' < "$root/internal/version/VERSION")
 if [ -z "$ver" ]; then
-  echo "✗ Makefile から VERSION を取得できません" >&2
+  echo "✗ internal/version/VERSION からバージョンを取得できません" >&2
   exit 1
 fi
 

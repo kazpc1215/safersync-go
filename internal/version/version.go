@@ -1,8 +1,19 @@
 // Package version は safersync のバージョンを管理する。
-// bash 版との互換性を保つため、Go 版は v1.2.0 から開始する。
 //
-// ビルド時に make release 経由で -ldflags "-X ...=version.Version" により
-// 上書きできる（CI のリリースビルド用）。
+// バージョンの単一ソースは同じディレクトリの VERSION ファイル。Makefile と
+// リリースワークフローもこのファイルを読む（以前は Makefile と Go の定数の
+// 二重管理で、更新漏れが起きやすかった）。
+//
+// リリースビルドでは -ldflags "-X ...=version.Version" による上書きもできる。
 package version
 
-var Version = "1.5.4"
+import (
+	_ "embed"
+	"strings"
+)
+
+//go:embed VERSION
+var versionFile string
+
+// Version は VERSION ファイルの内容（前後の空白は除去）。
+var Version = strings.TrimSpace(versionFile)
