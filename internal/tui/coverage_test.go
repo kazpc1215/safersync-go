@@ -685,6 +685,23 @@ func TestModel_promptFilter(t *testing.T) {
 	}
 }
 
+func TestModel_promptFilterClearsOnEmpty(t *testing.T) {
+	m := tbase()
+	m.stage = stSourceDir
+	m.browseDir = "/tmp"
+	m.browseFilter = "old"
+	m.prompting = true
+	m.promptKind = pkFilter
+	m.prompt = ""
+	m = stepKey(m, enter())
+	if m.browseFilter != "" {
+		t.Errorf("空入力でフィルタが解除されていない: %q", m.browseFilter)
+	}
+	if m.sel != 0 {
+		t.Errorf("解除後のカーソルが先頭でない: %d", m.sel)
+	}
+}
+
 func TestBoxHelpers_extra(t *testing.T) {
 	// boxTop の切り詰め（長いタイトル）
 	s := boxTop(12, "とても長いタイトルです")

@@ -661,6 +661,11 @@ func (m *model) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		input := strings.TrimSpace(m.prompt)
 		m.prompting = false
 		if input == "" {
+			// フィルタは「空で解除」と案内しているので、空入力で実際に解除する。
+			if m.promptKind == pkFilter {
+				m.browseFilter = ""
+				m.sel = 0
+			}
 			return m, nil
 		}
 		if m.promptKind == pkNew {
