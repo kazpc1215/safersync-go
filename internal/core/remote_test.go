@@ -120,6 +120,31 @@ func TestVerifyOneRemoteSkipsAggregate(t *testing.T) {
 	}
 }
 
+// ":" を含むローカルのパスに「./ を付けよ」のヒントを出すこと。
+// リテラルのパスが実在するときだけ出す（本物のリモートには出さない）。
+func TestColonLocalHint(t *testing.T) {
+	chdirTemp(t)
+	if err := os.Mkdir("photos:2019", 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if h := ColonLocalHint("photos:2019"); !strings.Contains(h, "./photos:2019") {
+		t.Errorf("ローカル誤認のヒントが出ない: %q", h)
+	}
+	// "./" 付きはローカル扱いなのでヒントなし
+	if h := ColonLocalHint("./photos:2019"); h != "" {
+		t.Errorf("エスケープ済みにヒントを出した: %q", h)
+	}
+	// 実在しないリモート（host:path）にはヒントなし
+	if h := ColonLocalHint("user@nas:/backup"); h != "" {
+		t.Errorf("存在しないリモートにヒントを出した: %q", h)
+	}
+	// ローカルパスにはヒントなし
+	if h := ColonLocalHint("/Volumes/HDD"); h != "" {
+		t.Errorf("ローカルパスにヒントを出した: %q", h)
+	}
+}
+
 func TestScanDirRemoteIsZero(t *testing.T) {
 	if res := ScanDir("user@host:/data", nil); res.Files != 0 || res.Bytes != 0 {
 		t.Errorf("リモートは走査できない（0 のはず）: %+v", res)

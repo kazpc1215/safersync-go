@@ -3,24 +3,27 @@
 本プロジェクトの主な変更点を記録します。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、
 バージョニングは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
-## [Unreleased]
+## [1.5.0] - 2026-10-19
 
 ### 追加
 
 - リモートパス（`[user@]host:path` / `rsync://host/module`）を **CLI で正式サポート**しました
   （照合・差分・中断・ログは従来どおり。TUI はボリューム選択のためローカルのみ）。
   リモートが絡む場合は空き容量チェックとファイル数集計を省略します
+- ローカルの名前に `:` を含むパスがリモートと誤認されるとき、先頭に `./` を付ける
+  修正方法をヒントとして表示するようにしました（実在するパスのときだけ）
 
 ### 変更
 
 - 進捗の分母を「総ファイルサイズ」から「開始時の転送先 + 今回の転送量」に変更し、差分
   コピー（再開・追記）でも 0% から動くようにしました
 - リモート先の進捗はバイト数ではなくファイル件数（件/秒）で表示します
+- 進捗バーの色をテーマ連動にしました（`light` は明るい背景向けの暗色、`high-contrast` は太字）
 - `NO_COLOR` と `SAFERSYNC_THEME` を `--help` と README に明記しました
   （ローカルの名前に `:` を含む場合の `./` エスケープも説明）
 - ログは 5 MiB を超えると `safersync.log.1` に1世代だけ退避するようにしました（無限に育ちません）
 - テストを追加: リモート先のファイル件数進捗（`DrawProgressFiles` / `countTransferredFiles`）と
-  テーマ切替の描画（`light` / `high-contrast` / `dark` / `NO_COLOR`）
+  テーマ切替の描画（`light` / `high-contrast` / `dark` / `NO_COLOR` / 進捗バー色）
 
 ### 修正
 
@@ -74,6 +77,7 @@
 個々の変更はリリースノートと git 履歴を参照してください:
 <https://github.com/kazpc1215/safersync-go/releases>
 
-[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.4.2...HEAD
+[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/kazpc1215/safersync-go/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/kazpc1215/safersync-go/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/kazpc1215/safersync-go/compare/v1.4.0...v1.4.1

@@ -103,6 +103,13 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 
 		src := p.src
 		dst := p.dst
+		// ローカルの名前に ":" を含み、かつ実在する場合は「リモート誤認」の
+		// ヒントを先に出す（rsync はホスト名解決の失敗で分かりにくく終わるため）。
+		for _, cand := range []string{src, dst} {
+			if h := core.ColonLocalHint(cand); h != "" {
+				fmt.Fprintln(stderr, h)
+			}
+		}
 		if !core.IsRemote(src) {
 			src = core.AbsPath(src)
 		}

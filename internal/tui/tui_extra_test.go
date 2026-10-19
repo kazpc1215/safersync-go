@@ -366,7 +366,8 @@ func TestApplyThemeRendersDistinct(t *testing.T) {
 
 	render := func(theme string, noColor bool) string {
 		applyTheme(theme, noColor)
-		return stOk.Render("x") + "|" + stErr.Render("x") + "|" + stCursor.Render("x")
+		return stOk.Render("x") + "|" + stErr.Render("x") + "|" + stCursor.Render("x") +
+			"|" + progressBar(95, 8)
 	}
 
 	none := render("", true)
@@ -384,5 +385,26 @@ func TestApplyThemeRendersDistinct(t *testing.T) {
 	}
 	if dark == light || dark == hc || light == hc {
 		t.Errorf("テーマの描画が区別できない: dark=%q light=%q hc=%q", dark, light, hc)
+	}
+}
+
+// 進捗バーの色もテーマ連動（light は暗色、dark/high-contrast は明色）。
+func TestBarFillColor(t *testing.T) {
+	defer applyTheme("", false)
+
+	dark := func(pct int) string { applyTheme("dark", false); return barFillColor(pct) }
+	light := func(pct int) string { applyTheme("light", false); return barFillColor(pct) }
+
+	// しきい値: <50 青, 50-89 黄, >=90 緑
+	if dark(10) != "12" || dark(50) != "11" || dark(90) != "10" {
+		t.Errorf("dark のバー色が想定外: %s %s %s", dark(10), dark(50), dark(90))
+	}
+	if light(10) != "4" || light(50) != "3" || light(90) != "2" {
+		t.Errorf("light のバー色が想定外: %s %s %s", light(10), light(50), light(90))
+	}
+	// high-contrast は dark と同じ明色コード（太字は progressBar 側で付ける）
+	applyTheme("high-contrast", false)
+	if got := barFillColor(95); got != "10" {
+		t.Errorf("high-contrast のバー色が想定外: %s", got)
 	}
 }

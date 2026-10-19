@@ -85,6 +85,25 @@ func IsRemote(p string) bool {
 	return strings.Contains(p[:idx], ":")
 }
 
+// ColonLocalHint は、ローカルに存在するのに ":" のせいで rsync にリモート扱い
+// されるパスへ、修正方法（先頭に "./" を付ける）を促す一文を返す。該当しなければ ""。
+//
+// rsync は最初の "/" より前の ":" を「ホスト名の区切り」とみなすため、ローカルの
+// 「2019:写真」のようなフォルダを渡すと「ホスト名を解決できません」という分かり
+// にくい失敗になる。リテラルのパスが実在するときだけヒントを出す（本物のリモートは
+// ローカルに実在しないため誤爆しない）。
+func ColonLocalHint(p string) string {
+	if p == "" || !IsRemote(p) {
+		return ""
+	}
+	if _, err := os.Lstat(p); err != nil {
+		return ""
+	}
+	return fmt.Sprintf(
+		"ヒント: %q はローカルにありますが、最初の \":\" より前がホスト名と解釈されリモート扱いになります。ローカルのつもりなら %q のように指定してください。",
+		p, "./"+p)
+}
+
 // AbsPath はパスをカレントディレクトリ基準の絶対パスにして末尾 "/" を取り除く。
 // 実行時のどこにいても同じ意味になる（bash 版 env.sh 同様、存在しなくてもよい）。
 func AbsPath(p string) string {

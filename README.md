@@ -43,7 +43,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ```sh
 # 例: macOS (Apple Silicon)
-tar -xzf safersync-1.4.2-darwin-arm64.tar.gz
+tar -xzf safersync-1.5.0-darwin-arm64.tar.gz
 mkdir -p ~/.local/bin
 install safersync ~/.local/bin/safersync
 ```

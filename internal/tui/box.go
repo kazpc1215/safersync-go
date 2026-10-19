@@ -32,7 +32,8 @@ func themeName(theme string, noColor bool) string {
 // init から環境変数で呼ばれるほか、テストからも直接呼べる。
 func applyTheme(theme string, noColor bool) {
 	themeNoColor = noColor
-	switch themeName(theme, noColor) {
+	themeKind = themeName(theme, noColor)
+	switch themeKind {
 	case "none":
 		stTitle = lipgloss.NewStyle()
 		stCursor = lipgloss.NewStyle()
@@ -201,16 +202,36 @@ func progressBar(pct, w int) string {
 	if themeNoColor {
 		return strings.Repeat("█", filled) + strings.Repeat("░", w-filled)
 	}
-	// 進捗に応じて色を変える（0-50: 青, 50-90: 黄, 90-100: 緑）
-	color := "12" // 青
+	// 進捗に応じて色を変える（0-50: 青, 50-90: 黄, 90-100: 緑）。
+	// 色はテーマに合わせる（light は暗色、high-contrast は太字）。
+	filledStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(barFillColor(pct)))
+	if themeKind == "high-contrast" {
+		filledStyle = filledStyle.Bold(true)
+	}
+	return filledStyle.Render(strings.Repeat("█", filled)) + stDim.Render(strings.Repeat("░", w-filled))
+}
+
+// barFillColor は進捗バーの塗り色コードを返す（テーマ連動）。
+// light テーマは明るい背景に映える暗色（4/3/2）、dark/high-contrast は明色（12/11/10）。
+func barFillColor(pct int) string {
+	light := themeKind == "light"
 	switch {
 	case pct >= 90:
-		color = "10" // 緑
+		if light {
+			return "2" // 緑
+		}
+		return "10"
 	case pct >= 50:
-		color = "11" // 黄
+		if light {
+			return "3" // 黄
+		}
+		return "11"
+	default:
+		if light {
+			return "4" // 青
+		}
+		return "12"
 	}
-	filledStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
-	return filledStyle.Render(strings.Repeat("█", filled)) + stDim.Render(strings.Repeat("░", w-filled))
 }
 
 // スタイル（画面に少し彩りを added。非TTYでは ANSI は出ない）
@@ -220,4 +241,6 @@ var (
 	// themeNoColor は NO_COLOR により配色を無効化しているか。
 	// progressBar など、テーマ変数を通さず色を組み立てる箇所で参照する。
 	themeNoColor bool
+	// themeKind は正規化したテーマ名（"dark" / "light" / "high-contrast" / "none"）。
+	themeKind string
 )
