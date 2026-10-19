@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -15,7 +16,9 @@ import (
 // Transfer は走行中の rsync の1本分。
 //
 //	ルール:
-//	- StartTransfer した goroutine 以外からも Frame / Interrupt を呼んでよい（内部は競合なし）
+//	- StartTransfer した goroutine 以外からも Frame / Interrupt を呼んでよい
+//	  （Frame / CurrentFile / LogFile / Wait / Cleanup が共有するフィールドは
+//	  mu で保護し、一時ファイルの Close は closeOnce で一度だけ行う）
 //	- Wait は一度だけ呼ぶ（戻るまでブロック）
 type Transfer struct {
 	Job   *Job
@@ -26,11 +29,17 @@ type Transfer struct {
 	startErr error
 
 	// rsync の --out-format 出力から進捗を数える（転送先の再走査はしない）。
-	counter  *transferredCounter
-	lastFile string
+	counter *transferredCounter
 
-	logFile string
-	log     *os.File
+	// mu は進捗用 goroutine（Frame / CurrentFile）と終了処理（Wait /
+	// Cleanup / LogFile）が別 goroutine から触るフィールドを保護する。
+	// closeOnce は Wait と Cleanup が並行しても一時ファイルを二重 Close
+	// しないためのもの。
+	mu        sync.Mutex
+	lastFile  string
+	logFile   string
+	log       *os.File
+	closeOnce sync.Once
 }
 
 // StartTransfer は rsync を開始する（失敗時は startErr を返すので StartedOK で確認）。
@@ -76,7 +85,9 @@ func (t *Transfer) Frame() (pct int, done, total, speed, eta int64) {
 	if t.counter != nil {
 		_, done = t.counter.count()
 		if t.counter.last != "" {
+			t.mu.Lock()
 			t.lastFile = t.counter.last
+			t.mu.Unlock()
 		}
 	}
 	total = t.Total
@@ -87,58 +98,75 @@ func (t *Transfer) Frame() (pct int, done, total, speed, eta int64) {
 	return pct, done, total, speed, eta
 }
 
+// closeLog は rsync 出力の一時ファイルを一度だけ閉じる。
+// Wait と Cleanup のどちらから、どの順で呼ばれても二重 Close しない。
+func (t *Transfer) closeLog() {
+	t.closeOnce.Do(func() {
+		t.mu.Lock()
+		f := t.log
+		t.log = nil
+		t.mu.Unlock()
+		if f != nil {
+			_ = f.Close()
+		}
+	})
+}
+
 // Wait は rsync の終了を待つ。戻り値は終了コード（0 / rsync の rc / 1）。
 func (t *Transfer) Wait() int {
 	if !t.StartedOK() {
-		if t.log != nil {
-			t.log.Close()
-		}
+		t.closeLog()
 		return 1
 	}
-	if err := t.cmd.Wait(); err != nil {
-		if t.log != nil {
-			t.log.Close()
-		}
+	err := t.cmd.Wait()
+	t.closeLog()
+	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
 			return ee.ExitCode()
 		}
 		return 1
 	}
-	if t.log != nil {
-		t.log.Close()
-	}
 	return 0
 }
 
 // LogFile は rsync 出力の一時ファイルパスを返す。
-func (t *Transfer) LogFile() string { return t.logFile }
+func (t *Transfer) LogFile() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.logFile
+}
 
 // Cleanup は rsync 出力の一時ファイルを閉じて削除する。
 // TUI の終了時や転送の再試行時に呼ぶ。Wait が呼ばれなかった場合でも
 // ファイルディスクリプタを残さないよう、ここでも Close する。
 // 二重に呼んでも実害はない。
 func (t *Transfer) Cleanup() {
-	if t.log != nil {
-		_ = t.log.Close()
-		t.log = nil
-	}
-	if t.logFile != "" {
-		_ = os.Remove(t.logFile)
+	t.closeLog()
+	t.mu.Lock()
+	path := t.logFile
+	t.logFile = ""
+	t.mu.Unlock()
+	if path != "" {
+		_ = os.Remove(path)
 	}
 }
 
 // CurrentFile は rsync の出力から最後に処理したファイル名を返す（無ければ空）。
 func (t *Transfer) CurrentFile() string {
-	if t.lastFile != "" {
-		return t.lastFile
-	}
-	if t.logFile == "" {
-		return ""
-	}
-	if _, _, name, ok := parseDiffLine(lastLine(t.logFile)); ok {
+	t.mu.Lock()
+	name := t.lastFile
+	path := t.logFile
+	t.mu.Unlock()
+	if name != "" {
 		return name
 	}
-	return lastLine(t.logFile)
+	if path == "" {
+		return ""
+	}
+	if _, _, n, ok := parseDiffLine(lastLine(path)); ok {
+		return n
+	}
+	return lastLine(path)
 }
 
 // lastLine は path の最後の空でない行を返す（無ければ空）。
