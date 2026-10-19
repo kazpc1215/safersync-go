@@ -206,11 +206,7 @@ func startVerifyCmd(m *model) tea.Cmd {
 		j.Out = &buf
 		j.Err = &buf
 		rc := core.VerifyOne(&j)
-		if rc == 0 {
-			core.LogMsg("VERIFY ok   " + job.Src + " vs " + job.Dst + " [tui]")
-		} else {
-			core.LogMsg("VERIFY diff " + job.Src + " vs " + job.Dst + " [tui]")
-		}
+		// ログは core.VerifyOne が出す（ここで重ねて出すと二重になる）。
 		close(done)
 		prog.Send(verifyDoneMsg{rc: rc, output: buf.String()})
 		return nil
