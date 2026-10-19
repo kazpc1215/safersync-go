@@ -216,7 +216,8 @@ func LogMsg(msg string) {
 
 	_ = os.MkdirAll(LogDir(), 0o700)
 	path := LogFile()
-	if fi, err := os.Stat(path); err == nil && fi.Size() > logMaxBytes {
+	fi, statErr := os.Stat(path)
+	if statErr == nil && fi.Size() > logMaxBytes {
 		_ = os.Remove(path + ".1")
 		_ = os.Rename(path, path+".1")
 	}
@@ -225,8 +226,10 @@ func LogMsg(msg string) {
 		return
 	}
 	defer f.Close()
-	// 既存ファイルが 0644 で作られていた場合も絞る（OpenFile のモードは
-	// 新規作成時にしか効かないため）。
-	_ = os.Chmod(path, 0o600)
+	// 既存ファイルが 0644 で作られていた場合だけ絞る（OpenFile のモードは
+	// 新規作成時にしか効かないため）。毎回 chmod すると syscall が増える。
+	if statErr == nil && fi.Mode().Perm() != 0o600 {
+		_ = os.Chmod(path, 0o600)
+	}
 	fmt.Fprintf(f, "%s\t%s\n", time.Now().Format("2006-01-02 15:04:05"), msg)
 }
