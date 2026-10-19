@@ -46,9 +46,6 @@ func (m *model) message(text string, back stage) {
 	m.stage = stMessage
 }
 
-// stMessage はメッセージ表示用の擬似ステージ。
-const stMessage stage = 99
-
 // checkSrc はコピー元決定時の検査。エラーメッセージ（空なら OK）。
 func (m *model) checkSrc(p string) string {
 	if ok, _ := isDirFollow(p); !ok {

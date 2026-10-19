@@ -28,6 +28,10 @@ const (
 	stDone                    // 完了レポート
 )
 
+// stMessage は「[Enter] で戻る」の1枚絵用の擬似ステージ。stage の数値列には
+// 含めない（titleOf の配列外として扱うため、値を離して定義する）。
+const stMessage stage = 99
+
 // numOptions は stOptions に並ぶ項目数（optionLine の行数・選択範囲と一致させる）。
 const numOptions = 6
 
