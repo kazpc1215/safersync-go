@@ -20,6 +20,16 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: テストと静的検査（リリース前にゲートする）
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt が必要なファイル:"
+            echo "$unformatted"
+            exit 1
+          fi
+          go vet ./...
+          go test -count=1 ./...
       - name: タグとバージョンの一致を確認
         run: |
           TAG="${GITHUB_REF_NAME#v}"
