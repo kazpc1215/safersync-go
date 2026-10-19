@@ -714,3 +714,45 @@ func TestCopyOneChecksumDetectsSameSizeSameTime(t *testing.T) {
 		t.Fatalf("チェックサム指定でも更新されていない: %v / %q", err, b)
 	}
 }
+
+// シンボリックリンク・空ディレクトリだけの差分でも CopyOne が取りこぼさない。
+func TestCopyOneNonRegularChanges(t *testing.T) {
+	if !RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	src, dst := t.TempDir(), t.TempDir()
+	if err := os.MkdirAll(filepath.Join(src, "empty"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("target", filepath.Join(src, "link")); err != nil {
+		t.Skipf("シンボリックリンクを作成できないためスキップ: %v", err)
+	}
+	plan := (&Job{Src: src, Dst: dst, FAT: true}).PlanChanges()
+	if plan.Files != 0 || plan.Changes < 2 {
+		t.Fatalf("plan = %+v, want Files=0 / Changes>=2", plan)
+	}
+	var out, errb bytes.Buffer
+	j := &Job{Src: src, Dst: dst, FAT: true, Out: &out, Err: &errb}
+	if rc := CopyOne(j); rc != 0 {
+		t.Fatalf("CopyOne = %d, err=%s", rc, errb.String())
+	}
+	if target, err := os.Readlink(filepath.Join(dst, "link")); err != nil || target != "target" {
+		t.Errorf("シンボリックリンクがコピーされていない: %v / %q", err, target)
+	}
+	if fi, err := os.Stat(filepath.Join(dst, "empty")); err != nil || !fi.IsDir() {
+		t.Errorf("空ディレクトリがコピーされていない: %v", err)
+	}
+
+	// 2回目は .d 以外の差分が無いのでスキップする。
+	out.Reset()
+	plan2 := (&Job{Src: src, Dst: dst, FAT: true}).PlanChanges()
+	if plan2.Changes != 0 {
+		t.Fatalf("2回目の Changes = %d（詳細: %v）", plan2.Changes, plan2.Lines)
+	}
+	if rc := CopyOne(&Job{Src: src, Dst: dst, FAT: true, Out: &out, Err: &errb}); rc != 0 {
+		t.Fatalf("2回目 CopyOne = %d, err=%s", rc, errb.String())
+	}
+	if !strings.Contains(out.String(), "転送するものはありません") {
+		t.Errorf("2回目が差分なしになっていない:\n%s", out.String())
+	}
+}

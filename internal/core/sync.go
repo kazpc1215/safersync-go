@@ -192,9 +192,10 @@ func isInterrupted(err error) bool {
 
 // Plan はコピーが必要なファイルの「件数・合計バイト数・一覧」。
 type Plan struct {
-	Files int
-	Bytes int64
-	Lines []string // "item name" 形式（dry-run 表示用）
+	Files   int
+	Changes int // 実行が必要な差分の件数（.d の属性差だけは除く）
+	Bytes   int64
+	Lines   []string // "item name" 形式（dry-run 表示用）
 
 	// 差分詳細（タブ表示用）
 	Transfer []string // 転送されるファイル（>f...）
@@ -206,8 +207,12 @@ type Plan struct {
 	Err error
 }
 
-// PlanChanges は転送対象のファイルだけを集める。
-// ディレクトリや属性（時刻）だけの変化は数えない（bash 版と同じ）。
+// PlanChanges は実行が必要な差分を集める。
+//
+// Files/Bytes は進捗の分母に使う「通常ファイルの転送量」、Changes は
+// シンボリックリンク・空ディレクトリ・属性変更も含めた「実行が必要な差分」。
+// .d の差分（ディレクトリの属性・時刻だけ）は OS 側で合わせられないことが
+// あるため Changes には数えないが、Skipped には残す。
 func (j *Job) PlanChanges() Plan {
 	var plan Plan
 	raw, err := j.CollectDiff("%i %l %n")
@@ -224,14 +229,21 @@ func (j *Job) PlanChanges() Plan {
 			continue
 		}
 		entry := item + " " + name
+		actionable := !strings.HasPrefix(item, ".d")
+		if actionable {
+			plan.Changes++
+			plan.Lines = append(plan.Lines, entry)
+		}
 		switch {
 		case strings.HasPrefix(item, ">f"):
 			plan.Files++
 			plan.Bytes += size
-			plan.Lines = append(plan.Lines, entry)
 			plan.Transfer = append(plan.Transfer, entry)
 		case strings.HasPrefix(item, "."):
 			plan.Skipped = append(plan.Skipped, entry)
+		case strings.HasPrefix(item, ">"), strings.HasPrefix(item, "c"), strings.HasPrefix(item, "h"):
+			// シンボリックリンク作成・ディレクトリ作成・ハードリンクなど。
+			plan.Transfer = append(plan.Transfer, entry)
 		default:
 			plan.Other = append(plan.Other, entry)
 		}

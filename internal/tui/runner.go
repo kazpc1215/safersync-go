@@ -87,17 +87,13 @@ func startPlanCmd(m *model) tea.Cmd {
 // Update から直接呼ぶ（rsync の起動はノンブロッキング）。
 func (m *model) beginTransfer() error {
 	job := m.job()
-	if m.plan.Files > 0 {
+	if m.plan.Changes > 0 {
 		core.LogMsg("COPY start  " + job.Src + " -> " + job.Dst + " (" +
-			strconv.Itoa(m.plan.Files) + " files) [tui]")
+			strconv.Itoa(m.plan.Files) + " files, " + strconv.Itoa(m.plan.Changes) + " changes) [tui]")
 	}
 	m.startAt = time.Now()
 	m.xferFiles = m.plan.Files
 	m.xferBytes = m.plan.Bytes
-	// goroutine から model のフィールドを読むと Update とデータ競合になる。
-	// 完了判定に使う値は起動前にローカルへコピーしておく。
-	xferFiles := m.xferFiles
-
 	// プレビューで走査済みのコピー元を引き継ぎ、転送開始時の再走査を省く
 	// （大きなツリーほど効く）。srcScan はプレビュー（planReadyMsg）で必ず設定される。
 	job.SetSrcScan(m.srcScan)
@@ -132,9 +128,6 @@ func (m *model) beginTransfer() error {
 					core.LogMsg("COPY done   " + job.Src + " -> " + job.Dst + " [tui]")
 				default:
 					core.LogMsg("COPY failed " + job.Src + " -> " + job.Dst + " (rc=" + strconv.Itoa(rc) + ") [tui]")
-				}
-				if xferFiles == 0 {
-					rc = 0 // bash 版と同じ: 差分ゼロなら転送はスキップして照合へ
 				}
 				prog.Send(transferDoneMsg{rc: rc})
 				return

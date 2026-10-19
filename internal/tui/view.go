@@ -281,6 +281,7 @@ func (m model) previewHeaderLines() []string {
 		"",
 		"差分スキャン結果:",
 		"  ・転送対象: " + itoa(m.plan.Files) + " ファイル（" + core.FmtBytes(m.plan.Bytes) + "）",
+		"  ・実行が必要な変更: " + itoa(m.plan.Changes) + " 件（シンボリックリンク・属性など）",
 		"  ・スキップ: " + itoa(skip) + " ファイル（" + core.FmtBytes(skipb) + " - すでに転送済み）",
 		"  ・転送先空き: " + core.FmtBytes(m.free) + "  [" + spaceMsg + "]",
 	}
@@ -348,7 +349,7 @@ func (m model) doneLines() []string {
 		status = stErr.Render("エラーが発生しました（終了コード " + itoa(m.finalRC) + "）")
 		verifyTxt = stWarn.Render("不一致または失敗（ログを確認してください）")
 	}
-	if m.plan.Files == 0 {
+	if m.plan.Changes == 0 && m.plan.Files == 0 {
 		status = "転送するものはありませんでした（すべて最新）"
 	}
 	out = append(out,

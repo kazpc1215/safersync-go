@@ -493,7 +493,7 @@ func CopyOne(j *Job) int {
 		return ExitEnv
 	}
 
-	if plan.Files == 0 {
+	if plan.Changes == 0 {
 		fmt.Fprintln(j.Out, "✓ 転送するものはありません（すべて最新です）")
 		j.log(fmt.Sprintf("COPY skip   %s -> %s (no changes)", j.Src, j.Dst))
 		return 0
@@ -504,8 +504,14 @@ func CopyOne(j *Job) int {
 	j.PlanFiles = plan.Files
 
 	if j.DryRun {
-		fmt.Fprintf(j.Out, "    コピーするファイル: %d 件（%s） ※dry-run のため実際にはコピーしません\n",
-			plan.Files, FmtBytes(plan.Bytes))
+		if plan.Files > 0 {
+			fmt.Fprintf(j.Out, "    コピーするファイル: %d 件（%s） ※dry-run のため実際にはコピーしません\n",
+				plan.Files, FmtBytes(plan.Bytes))
+		}
+		if plan.Files == 0 || plan.Changes != plan.Files {
+			fmt.Fprintf(j.Out, "    実行が必要な変更: %d 件（シンボリックリンク・ディレクトリ・属性など） ※dry-run\n",
+				plan.Changes)
+		}
 		shown := 0
 		for _, l := range plan.Lines {
 			if shown >= 20 {
@@ -551,8 +557,13 @@ func CopyOne(j *Job) int {
 		j.ProgressFiles = true
 	}
 
-	fmt.Fprintf(j.Out, "    コピーするファイル: %d 件（%s）\n", plan.Files, FmtBytes(plan.Bytes))
-	j.log(fmt.Sprintf("COPY start  %s -> %s (%d files)", j.Src, j.Dst, plan.Files))
+	if plan.Files > 0 {
+		fmt.Fprintf(j.Out, "    コピーするファイル: %d 件（%s）\n", plan.Files, FmtBytes(plan.Bytes))
+	}
+	if plan.Changes != plan.Files {
+		fmt.Fprintf(j.Out, "    実行が必要な変更: %d 件（シンボリックリンク・ディレクトリ・属性など）\n", plan.Changes)
+	}
+	j.log(fmt.Sprintf("COPY start  %s -> %s (%d files, %d changes)", j.Src, j.Dst, plan.Files, plan.Changes))
 
 	cmd := newRsyncCmd(j, j.rsyncArgs())
 
@@ -571,8 +582,13 @@ func CopyOne(j *Job) int {
 		j.log(fmt.Sprintf("COPY failed %s -> %s (rc=%d)", j.Src, j.Dst, rc))
 		return 1
 	}
-	fmt.Fprintf(j.Out, "✓ コピー完了（%d ファイル / %s / %s）\n",
-		plan.Files, FmtBytes(plan.Bytes), FmtDuration(int64(time.Since(copyStart).Seconds())))
+	if plan.Files > 0 {
+		fmt.Fprintf(j.Out, "✓ コピー完了（%d ファイル / %s / %s）\n",
+			plan.Files, FmtBytes(plan.Bytes), FmtDuration(int64(time.Since(copyStart).Seconds())))
+	} else {
+		fmt.Fprintf(j.Out, "✓ コピー完了（変更 %d 件 / %s）\n",
+			plan.Changes, FmtDuration(int64(time.Since(copyStart).Seconds())))
+	}
 	j.log(fmt.Sprintf("COPY done   %s -> %s", j.Src, j.Dst))
 	j.TotalFiles += plan.Files
 	j.TotalBytes += plan.Bytes
