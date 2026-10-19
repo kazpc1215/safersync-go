@@ -473,6 +473,35 @@ func TestCountTransferredFiles(t *testing.T) {
 	}
 }
 
+// 追記分だけを数える（毎tickで全読みしない）。改行で終わっていない行は
+// 完成するまで数えない。
+func TestTransferredCounterIncremental(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out")
+	// 1件は改行で終わっていない（未完）
+	if err := os.WriteFile(path, []byte(">f++++ a\n>f++++ b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := &transferredCounter{path: path}
+	if got := c.countTransferred(); got != 1 {
+		t.Errorf("1回目 = %d, want 1（未完の行は数えない）", got)
+	}
+	// 未完の行が完成し、さらに1件追記される
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString("\n>f++++ c\n"); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	if got := c.countTransferred(); got != 3 {
+		t.Errorf("2回目 = %d, want 3", got)
+	}
+	if got := c.countTransferred(); got != 3 {
+		t.Errorf("追記なしの3回目 = %d, want 3（二重に数えない）", got)
+	}
+}
+
 func TestProgressCountFrom(t *testing.T) {
 	start := time.Unix(1000, 0)
 	now := time.Unix(1010, 0) // 10 秒経過

@@ -4,6 +4,7 @@ package core
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -211,6 +212,9 @@ func runWithProgress(cmd *exec.Cmd, j *Job) int {
 	cmd.Stdout = tmp
 	cmd.Stderr = tmp
 
+	// リモート先の件数進捗は、前回読んだ位置から追記分だけ数える
+	counter := &transferredCounter{path: tmp.Name()}
+
 	// 中断（Ctrl-C / TERM / HUP）の受付。起動前に登録して取りこぼしを防ぐ
 	sigCh, stop := watchSignals()
 	defer stop()
@@ -245,7 +249,7 @@ loop:
 				continue
 			}
 			if remote {
-				files := countTransferredFiles(tmp.Name())
+				files := counter.countTransferred()
 				p, speed, eta := progressCountFrom(files, int64(j.PlanFiles), start, time.Now())
 				fmt.Fprintf(j.Out, "\r\033[K  %s",
 					DrawProgressFiles(p, files, int64(j.PlanFiles), speed, eta))
@@ -298,21 +302,48 @@ loop:
 	return 0
 }
 
-// countTransferredFiles は rsync の --out-format=%i 出力から、転送された通常
-// ファイルの行数（行頭が ">f"）を数える。ディレクトリ作成（"cd..."）や
-// 属性のみの変化（".f..."）は数えない。
-func countTransferredFiles(path string) int64 {
-	data, err := os.ReadFile(path)
+// transferredCounter は rsync の --out-format=%i 出力を、前回読んだ位置から
+// 追記分だけ走査して転送された通常ファイル数（行頭 ">f"）を数える。毎tickで
+// ファイル全体を読み直すのを避ける（転送ファイルが多いほど効く）。
+type transferredCounter struct {
+	path  string
+	off   int64
+	tail  string // 改行で終わっていない未完の行（次回に持ち越す）
+	count int64
+}
+
+// countTransferred は前回以降に追記された分だけを数え、累計を返す。
+func (c *transferredCounter) countTransferred() int64 {
+	f, err := os.Open(c.path)
 	if err != nil {
-		return 0
+		return c.count
 	}
-	var n int64
-	for _, line := range strings.Split(string(data), "\n") {
+	defer f.Close()
+	if _, err := f.Seek(c.off, io.SeekStart); err != nil {
+		return c.count
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return c.count
+	}
+	c.off += int64(len(data))
+
+	buf := c.tail + string(data)
+	lines := strings.Split(buf, "\n")
+	c.tail = lines[len(lines)-1] // 最後は未完の行かもしれない
+	for _, line := range lines[:len(lines)-1] {
 		if strings.HasPrefix(line, ">f") {
-			n++
+			c.count++
 		}
 	}
-	return n
+	return c.count
+}
+
+// countTransferredFiles は、転送された通常ファイルの行数（行頭が ">f"）を数える。
+// ディレクトリ作成（"cd..."）や属性のみの変化（".f..."）は数えない。
+// 一回だけ数える用途向けの薄いラッパ（継続的に数えるときは transferredCounter）。
+func countTransferredFiles(path string) int64 {
+	return (&transferredCounter{path: path}).countTransferred()
 }
 
 func exitCodeOf(err error) int {
