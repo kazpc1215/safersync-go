@@ -51,6 +51,9 @@ func RunTui(opts *core.Options, mountRoot string, in io.Reader, out io.Writer) i
 	case stOptions, stSource, stSourceDir:
 		m.loadSourceMenu()
 	}
+	if m.startupErr != "" {
+		m.message(m.startupErr, m.stage)
+	}
 	popts := []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion()}
 	if in != nil {
 		popts = append(popts, tea.WithInput(in))

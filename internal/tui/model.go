@@ -67,6 +67,7 @@ type model struct {
 	mountRoot   string // ボリューム基点
 	prefillFrom string // --from（フォルダならスキップ）
 	prefillTo   string // --to
+	startupErr  string // プリフィルの検証エラー（起動後に表示）
 	logFile     string
 
 	// TUI オプション（bash 版既定＋CLI 引数を反映）
@@ -178,15 +179,24 @@ func newModelWithOptions(opts *core.Options, mountRoot, from, to string) *model 
 		stage:          stSource,
 		logFile:        core.LogFile(),
 	}
-	// 引数があればプリフィル（--tui と位置引数の併用。bash 版と同じ）
+	// 引数があればプリフィル（--tui と位置引数の併用。bash 版と同じ）。
+	// 画面遷移で行う検査（checkSrc / checkDst）を起動時にも必ず通し、
+	// 入れ子コピーなど不正な指定をすり抜けさせない。
 	if m.prefillFrom != "" {
 		p := core.AbsPath(m.prefillFrom)
-		if ok, _ := isDirFollow(p); ok {
+		if e := m.checkSrc(p); e != "" {
+			m.startupErr = e
+		} else {
 			m.src = p
 			m.stage = stDest
 			if m.prefillTo != "" {
-				m.dst = core.AbsPath(m.prefillTo)
-				m.stage = stOptions
+				d := core.AbsPath(m.prefillTo)
+				if e := m.checkDst(d); e != "" {
+					m.startupErr = e
+				} else {
+					m.dst = d
+					m.stage = stOptions
+				}
 			}
 		}
 	}

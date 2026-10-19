@@ -468,3 +468,33 @@ func TestTransferDoneNoVerify(t *testing.T) {
 		t.Errorf("stage=%v verifyRC=%d finalRC=%d", gm.stage, gm.verifyRC, gm.finalRC)
 	}
 }
+
+// プリフィルでも checkDst を通す（コピー先がコピー元の内側になる指定を拒否）。
+func TestNewModelPrefillRejectsInsideSource(t *testing.T) {
+	src := t.TempDir()
+	inside := filepath.Join(src, "backup")
+	m := newModel("/Volumes", src, inside)
+	if m.stage == stOptions {
+		t.Fatal("内側のコピー先がプリフィルされている")
+	}
+	if m.dst != "" {
+		t.Errorf("不正なコピー先が設定されている: %q", m.dst)
+	}
+	if !strings.Contains(m.startupErr, "コピー元の中") {
+		t.Errorf("起動時エラーが入っていない: %q", m.startupErr)
+	}
+
+	// 正常な組み合わせは従来どおり stOptions まで進む
+	m2 := newModel("/Volumes", src, t.TempDir())
+	if m2.stage != stOptions || m2.startupErr != "" {
+		t.Errorf("正常なプリフィル: stage=%v err=%q", m2.stage, m2.startupErr)
+	}
+}
+
+// 存在しないコピー元のプリフィルも黙って無視せず、起動時に知らせる。
+func TestNewModelPrefillMissingSource(t *testing.T) {
+	m := newModel("/Volumes", filepath.Join(t.TempDir(), "nope"), "")
+	if m.stage != stSource || !strings.Contains(m.startupErr, "フォルダが見つかりません") {
+		t.Errorf("stage=%v err=%q", m.stage, m.startupErr)
+	}
+}
