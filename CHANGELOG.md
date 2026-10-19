@@ -3,6 +3,45 @@
 本プロジェクトの主な変更点を記録します。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、
 バージョニングは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [1.5.1] - 2026-10-19
+
+### 修正
+
+- モジュールパスをリポジトリの URL（`github.com/kazpc1215/safersync-go`）に統一しました。
+  宣言が `github.com/kazpc1215/safersync` のままだと `go install ...@latest` が必ず失敗して
+  いました（bash 版リポジトリ側に `go.mod` が無く、`safersync-go` 側でも path mismatch になる）
+- `--exclude` のパス依存パターン（`sub/cache`、末尾 `/`、`**`、`[...]`、`?`）を rsync と同じ
+  規則で解釈するようにしました。ベース名だけで照合していたため、走査（進捗の分母・照合の
+  集計）と実際の rsync 転送で除外がずれていました
+- 初回の差分スキャン（dry-run の rsync）中に `Ctrl-C` / `TERM` してもトラップされず唐突に
+  終了していたのを、子 rsync を止めて「中断しました」と 130 で終了するようにしました
+- コピー先がシンボリックリンク経由でコピー元の内側にある場合に入れ子コピーを止められず、
+  逆にコピー元の中のリンクが外を指す場合は正当な指定を誤って拒否していたのを修正しました
+  （`IsInside` でリンクを解決）
+- `DestIsMounted` で、基点そのものが実マウントポイントのときにその直下を未マウントと
+  誤判定するのを修正しました
+
+### 変更
+
+- 端末判定と TUI の入出力を、注入された writer で行うようにしました（テスト・埋め込み用途で
+  挙動を固定できます）
+- `install.sh` を堅牢化しました: 既定のダウンロードで https を強制し、バージョン形式を検証し、
+  導入したバイナリの `--version` を確認します（テスト用ミラー指定時は http も許可）
+- `make release` のチェックサム生成を `sha256sum` / `shasum` の両対応にし、Linux でも
+  `make release` できるようにしました
+- `make install` の無効な警告行を削除し、PATH 上で別の safersync が先に見つかる場合の
+  警告を実装しました
+
+### 内部・性能
+
+- ログ表示時に毎フレーム読み直していたファイル全体をキャッシュし、開いたとき・キー操作の
+  ときだけ読み直すようにしました
+- リモート先の件数進捗を、前回の読み込み位置からの差分走査にしました（転送ファイルが多い
+  ほど効きます）
+- TUI のオプション項目数を定数化し、擬似ステージ `stMessage` の定義を stage 一覧の近くへ
+  集約しました
+- 実 rsync を使った統合テスト（コピー → 照合 → dry-run → 除外）を追加しました
+
 ## [1.5.0] - 2026-10-19
 
 ### 追加
@@ -77,7 +116,8 @@
 個々の変更はリリースノートと git 履歴を参照してください:
 <https://github.com/kazpc1215/safersync-go/releases>
 
-[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/kazpc1215/safersync-go/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/kazpc1215/safersync-go/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/kazpc1215/safersync-go/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/kazpc1215/safersync-go/compare/v1.4.0...v1.4.1
