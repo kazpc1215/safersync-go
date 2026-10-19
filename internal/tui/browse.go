@@ -102,17 +102,29 @@ func browseEntriesAdvanced(dir, root string, pickLabel string, canCreate bool, s
 			if strings.HasPrefix(e.Name(), ".") && !showHidden {
 				continue // 隠しフォルダは既定で出さない（bash 版と同じ）
 			}
+			full := filepath.Join(dir, e.Name())
+			isLink := e.Type()&os.ModeSymlink != 0
 			if !e.IsDir() {
-				continue
+				// ディレクトリへのシンボリックリンクも選択肢に含める
+				// （カメラの DCIM などがリンクになっていることがある）。
+				if !isLink {
+					continue
+				}
+				if ok, _ := isDirFollow(full); !ok {
+					continue // リンク切れ・ファイルへのリンクは出さない
+				}
 			}
 			label := e.Name() + "/"
-			if strings.HasPrefix(e.Name(), ".") {
+			switch {
+			case strings.HasPrefix(e.Name(), "."):
 				label = e.Name() + "/  (隠し)"
+			case isLink:
+				label = e.Name() + "/  (リンク)"
 			}
 			if filter != "" && !strings.Contains(strings.ToLower(e.Name()), strings.ToLower(filter)) {
 				continue
 			}
-			items = append(items, pickItem{kind: pickDir, path: dir + "/" + e.Name(), label: label})
+			items = append(items, pickItem{kind: pickDir, path: full, label: label})
 		}
 	}
 	action := "このフォルダを" + pickLabel + "にする"

@@ -596,3 +596,37 @@ func TestUpdatePrompt_manualRelativePath(t *testing.T) {
 		t.Errorf("絶対パスを変更した: %q", got)
 	}
 }
+
+// ディレクトリへのシンボリックリンクもフォルダ選択に出す（リンクは壊れていないものだけ）。
+func TestBrowseEntriesIncludesSymlinkDir(t *testing.T) {
+	root := t.TempDir()
+	real := filepath.Join(root, "real")
+	if err := os.MkdirAll(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, filepath.Join(root, "linked")); err != nil {
+		t.Skipf("シンボリックリンクを作成できないためスキップ: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(root, "missing"), filepath.Join(root, "broken")); err != nil {
+		t.Fatal(err)
+	}
+	items := browseEntriesAdvanced(root, root, "コピー元", false, false, "")
+	var foundLinked, foundBroken bool
+	for _, it := range items {
+		switch it.path {
+		case filepath.Join(root, "linked"):
+			foundLinked = true
+			if !strings.Contains(it.label, "(リンク)") {
+				t.Errorf("リンクの印が無い: %q", it.label)
+			}
+		case filepath.Join(root, "broken"):
+			foundBroken = true
+		}
+	}
+	if !foundLinked {
+		t.Error("ディレクトリへのシンボリックリンクが一覧に無い")
+	}
+	if foundBroken {
+		t.Error("リンク切れが一覧に出ている")
+	}
+}
