@@ -498,3 +498,25 @@ func TestNewModelPrefillMissingSource(t *testing.T) {
 		t.Errorf("stage=%v err=%q", m.stage, m.startupErr)
 	}
 }
+
+// 契約外の rsync 終了コード（例: 24）は TUI の終了コード 1 に正規化する。
+func TestTUIExitCodeNormalization(t *testing.T) {
+	cases := map[int]int{
+		0: 0, 1: 1, 2: 2, 3: 3, 130: 130,
+		23: 1, 24: 1, 255: 1,
+	}
+	for in, want := range cases {
+		if got := tuiExitCode(in); got != want {
+			t.Errorf("tuiExitCode(%d) = %d, want %d", in, got, want)
+		}
+	}
+
+	m := tbase()
+	m.stage = stTransfer
+	m.startAt = time.Now()
+	nm, _ := m.Update(transferDoneMsg{rc: 24})
+	gm := nm.(*model)
+	if gm.finalRC != 1 {
+		t.Errorf("rc=24 の finalRC = %d, want 1", gm.finalRC)
+	}
+}

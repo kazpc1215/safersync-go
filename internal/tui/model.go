@@ -308,11 +308,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case transferDoneMsg:
-		m.xferRC = msg.rc
-		if msg.rc != 0 {
+		m.xferRC = tuiExitCode(msg.rc)
+		if m.xferRC != 0 {
 			m.verifyRC = 1 // bash 版と同じ: 転送失敗なら照合は行わない
 			m.elapsed = time.Since(m.startAt)
-			m.finalRC = msg.rc
+			m.finalRC = m.xferRC
 			m.stage = stDone
 			return m, nil
 		}
@@ -327,14 +327,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, startVerifyCmd(m)
 
 	case verifyDoneMsg:
-		m.verifyRC = msg.rc
+		m.verifyRC = tuiExitCode(msg.rc)
 		m.verifyOut = msg.output
 		m.elapsed = time.Since(m.startAt)
 		// 終了コードは CLI とそろえる（コピー失敗 > 照合失敗 > 成功）
 		if m.xferRC != 0 {
 			m.finalRC = m.xferRC
 		} else if m.verifyRC != 0 {
-			m.finalRC = 1
+			m.finalRC = m.verifyRC
 		}
 		m.stage = stDone
 		return m, nil
@@ -807,6 +807,17 @@ func (m *model) updatePreview(key string) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// tuiExitCode は rsync などの生の終了コードを safersync の契約
+// （0 / 1 / 2 / 3 / 130）に正規化する。契約外の値は一般エラーの 1 にする。
+func tuiExitCode(rc int) int {
+	switch rc {
+	case 0, core.ExitError, core.ExitUnmounted, core.ExitEnv, core.ExitInterrupted:
+		return rc
+	default:
+		return core.ExitError
+	}
 }
 
 func mod(a, n int) int {
