@@ -283,16 +283,21 @@ func writeNonDiffOutput(w io.Writer, data []byte) {
 }
 
 // isRsyncItemLine は --out-format=%i の出力行（例: ">f+++++++++ 5 a.txt"）かを返す。
-// 統計行（"Number of files: ..." など）と区別するため、先頭の11文字が
-// rsync の itemize 形式になっているかを見る。
+// 統計行（"Number of files: ..." など）と区別する。itemize の長さは実装で
+// 異なる（GNU rsync は 11 文字、openrsync は 9 文字）ため、長さでは判定せず、
+// 先頭2文字（更新種別・ファイル種別）と、その直後の区切りを見る。
 func isRsyncItemLine(line string) bool {
-	if len(line) < 11 || line[11] != ' ' {
+	if len(line) < 3 {
 		return false
 	}
 	if !strings.ContainsRune("<>ch.*", rune(line[0])) {
 		return false
 	}
-	return strings.ContainsRune("fdLDS", rune(line[1]))
+	if !strings.ContainsRune("fdLDS", rune(line[1])) {
+		return false
+	}
+	// item フィールドの後ろは必ず空白（%l などのため）。
+	return strings.IndexByte(line, ' ') >= 2
 }
 
 // transferredCounter は rsync の --out-format=%i 出力を、前回読んだ位置から
@@ -387,7 +392,7 @@ func (j *Job) rsyncArgs() []string {
 	switch {
 	case j.Verbose:
 		args = append(args, "--stats")
-	case j.ListFiles || j.ProgressFiles:
+	case j.ListFiles || j.ProgressFiles || j.ShowProgress:
 		// -q は --out-format の出力（進捗の数え上げ・TUI のファイル名表示）も
 		// 抑制してしまうため、出力を使うときは付けない（エラーは stderr に出る）。
 	default:

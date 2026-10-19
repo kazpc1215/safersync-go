@@ -228,13 +228,16 @@ func TestWriteNonDiffOutput(t *testing.T) {
 		"cd+++++++++ 0 ./",
 		">f+++++++++ 5 a.txt",
 		".f...p..... 3 b.txt",
+		// openrsync は itemize が 9 文字
+		">f+++++++ 314572800 big.bin",
+		".d..t.... 96 ./",
 		"Number of files: 2 (reg: 2)",
 		"Total file size: 8 bytes",
 	}, "\n"))
 	var out bytes.Buffer
 	writeNonDiffOutput(&out, data)
 	got := out.String()
-	for _, item := range []string{">f+++++++++ 5 a.txt", ".f...p..... 3 b.txt", "cd+++++++++ 0 ./"} {
+	for _, item := range []string{">f+++++++++ 5 a.txt", ".f...p..... 3 b.txt", "cd+++++++++ 0 ./", ">f+++++++ 314572800 big.bin", ".d..t.... 96 ./"} {
 		if strings.Contains(got, item) {
 			t.Errorf("差分行が出力に残っている: %q", item)
 		}
@@ -247,7 +250,7 @@ func TestWriteNonDiffOutput(t *testing.T) {
 }
 
 func TestIsRsyncItemLine(t *testing.T) {
-	for _, line := range []string{">f+++++++++ 5 a.txt", "cd+++++++++ 0 ./", ".d..t...... 1 x", "cL+++++++++ 6 link"} {
+	for _, line := range []string{">f+++++++++ 5 a.txt", "cd+++++++++ 0 ./", ".d..t...... 1 x", "cL+++++++++ 6 link", ">f+++++++ 314572800 big.bin", ".d..t.... 96 ./"} {
 		if !isRsyncItemLine(line) {
 			t.Errorf("差分として判定できない: %q", line)
 		}

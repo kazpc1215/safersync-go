@@ -166,9 +166,13 @@ func TestRsyncArgsProgressFiles(t *testing.T) {
 	if got := strings.Join(j2.rsyncArgs(), " "); !strings.Contains(got, "--out-format=%i %l %n") {
 		t.Errorf("共通の out-format を使うはず: %v", j2.rsyncArgs())
 	}
-	// ShowProgress も %l を読むために out-format を付ける
+	// ShowProgress も %l を読むために out-format を付け、-q を付けない
 	j3 := &Job{Src: "a", Dst: "/b", ShowProgress: true}
-	if got := strings.Join(j3.rsyncArgs(), " "); !strings.Contains(got, "--out-format=%i %l %n") {
-		t.Errorf("ShowProgress でも out-format を付けるはず: %v", j3.rsyncArgs())
+	args3 := j3.rsyncArgs()
+	if got := strings.Join(args3, " "); !strings.Contains(got, "--out-format=%i %l %n") {
+		t.Errorf("ShowProgress でも out-format を付けるはず: %v", args3)
+	}
+	if contains(args3, "-q") {
+		t.Errorf("ShowProgress 時に -q が付いている（進捗が出ない）: %v", args3)
 	}
 }
