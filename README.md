@@ -42,8 +42,8 @@ export PATH="$HOME/.local/bin:$PATH"
 ダウンロードして解凍し、`safersync` を PATH の通った場所へ置きます。
 
 ```sh
-# 例: macOS (Apple Silicon)
-tar -xzf safersync-1.5.0-darwin-arm64.tar.gz
+# 例: macOS (Apple Silicon)。<version> は入手したリリース番号（例: 1.5.2）に置き換える
+tar -xzf safersync-<version>-darwin-arm64.tar.gz
 mkdir -p ~/.local/bin
 install safersync ~/.local/bin/safersync
 ```
@@ -58,12 +58,13 @@ tap を公開済みの場合（`kazpc1215/homebrew-tap`）:
 brew install kazpc1215/tap/safersync
 ```
 
-formula は本リポジトリの `packaging/homebrew/safersync.rb` を tap 側の `Formula/` に
-コピーして利用します。この formula は `dist/release/SHA256SUMS` から自動生成し、
-tarball の URL と sha256 をリリースの実物に合わせます（リリース時に `make formula` を実行。
-生成された formula はリリースの添付ファイルにも含まれます）。
-リリース公開時に `Release` ワークフローが、このリリースの `SHA256SUMS` から formula を
-生成して `main` へ自動反映するため、本リポジトリの formula は常に最新リリースと一致します。
+formula は `dist/release/SHA256SUMS` から自動生成し、tarball の URL と sha256 を
+リリースの実物に合わせます（生成は `packaging/homebrew/update-formula.sh`。手で編集しません）。
+
+リリースを公開すると `Release` ワークフローが、そのリリースの `SHA256SUMS` から formula を
+生成して本リポジトリの `main` へ自動反映し、リリースの添付ファイルにも含めます。
+tap リポジトリ（`kazpc1215/homebrew-tap`）への反映は現状手動で、リリース後に本リポジトリの
+`packaging/homebrew/safersync.rb` を tap の `Formula/safersync.rb` へコピーします。
 
 ### 方法 D: ソースからビルド（Go 1.27 以降が入っている場合）
 
