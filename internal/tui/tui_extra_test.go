@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/kazpc1215/safersync/internal/core"
 )
@@ -353,5 +354,35 @@ func TestProgressBarNoColor(t *testing.T) {
 	applyTheme("", false)
 	if w := lipgloss.Width(progressBar(0, 10)); w != 10 {
 		t.Errorf("色ありの進捗バーの幅が 10 でない: %d", w)
+	}
+}
+
+// 各テーマが実際に異なる描画になること（色プロファイルを固定して検証）。
+// applyTheme を通したスタイルが「色なし（空）」だけになっていないことも確認する。
+func TestApplyThemeRendersDistinct(t *testing.T) {
+	defer applyTheme("", false) // dark に戻す
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
+
+	render := func(theme string, noColor bool) string {
+		applyTheme(theme, noColor)
+		return stOk.Render("x") + "|" + stErr.Render("x") + "|" + stCursor.Render("x")
+	}
+
+	none := render("", true)
+	if strings.Contains(none, "\x1b") {
+		t.Errorf("NO_COLOR で ANSI が残る: %q", none)
+	}
+
+	dark := render("", false)
+	light := render("light", false)
+	hc := render("high-contrast", false)
+	for name, got := range map[string]string{"dark": dark, "light": light, "high-contrast": hc} {
+		if !strings.Contains(got, "\x1b") {
+			t.Errorf("%s テーマで色が付いていない: %q", name, got)
+		}
+	}
+	if dark == light || dark == hc || light == hc {
+		t.Errorf("テーマの描画が区別できない: dark=%q light=%q hc=%q", dark, light, hc)
 	}
 }

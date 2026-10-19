@@ -19,6 +19,8 @@
 - `NO_COLOR` と `SAFERSYNC_THEME` を `--help` と README に明記しました
   （ローカルの名前に `:` を含む場合の `./` エスケープも説明）
 - ログは 5 MiB を超えると `safersync.log.1` に1世代だけ退避するようにしました（無限に育ちません）
+- テストを追加: リモート先のファイル件数進捗（`DrawProgressFiles` / `countTransferredFiles`）と
+  テーマ切替の描画（`light` / `high-contrast` / `dark` / `NO_COLOR`）
 
 ### 修正
 

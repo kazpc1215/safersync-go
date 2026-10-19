@@ -372,6 +372,58 @@ func TestDrawProgress(t *testing.T) {
 	}
 }
 
+// リモート先の進捗（件数ベース）の描画。バイト版と同じ体裁で件数・件/秒を出す。
+func TestDrawProgressFiles(t *testing.T) {
+	t.Setenv("COLUMNS", "120")
+	s := DrawProgressFiles(50, 3, 6, 1.5, 2)
+	for _, want := range []string{"[", "█", "░", "50%", "3 / 6 ファイル", "1.5件/秒", "残り 約 2秒"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("DrawProgressFiles に %q がない: %q", want, s)
+		}
+	}
+
+	// 狭い端末ではバーを出さない（折り返して崩れるため）
+	t.Setenv("COLUMNS", "40")
+	s = DrawProgressFiles(0, 0, 0, 0, -1)
+	if strings.Contains(s, "[") {
+		t.Errorf("狭い端末でバーを出している: %q", s)
+	}
+	if !strings.Contains(s, "残り --") {
+		t.Errorf("ETA 不明の表示がない: %q", s)
+	}
+
+	// 100% では残り時間を出さない
+	t.Setenv("COLUMNS", "120")
+	s = DrawProgressFiles(100, 6, 6, 2, 0)
+	if strings.Contains(s, "残り") {
+		t.Errorf("100%% で残り時間を出している: %q", s)
+	}
+}
+
+// countTransferredFiles は rsync の --out-format=%i から「転送された通常ファイル」
+// （行頭 ">f"）だけを数えること。ディレクトリ作成や属性のみの変化は数えない。
+func TestCountTransferredFiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out")
+	content := strings.Join([]string{
+		"cd+++++++++ ./",
+		">f+++++++++ 5.00 a.txt",
+		".f...p..... b.txt", // 属性のみ → 数えない
+		">f         c.txt",  // 形式ゆれでも ">f" なら数える
+		">f+++++++++ d/e.txt",
+		"",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := countTransferredFiles(path); got != 3 {
+		t.Errorf("countTransferredFiles = %d, want 3", got)
+	}
+	// 読めないファイルは 0（進捗は 0 件として扱う）
+	if got := countTransferredFiles(filepath.Join(t.TempDir(), "missing")); got != 0 {
+		t.Errorf("存在しないファイルで %d, want 0", got)
+	}
+}
+
 func TestProgressCountFrom(t *testing.T) {
 	start := time.Unix(1000, 0)
 	now := time.Unix(1010, 0) // 10 秒経過
