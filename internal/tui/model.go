@@ -126,6 +126,7 @@ type model struct {
 	fileListScroll int
 	showLog        bool
 	logScroll      int
+	logLines       []string // ログ表示用のキャッシュ（毎レンダーで読まない）
 	previewTab     int
 
 	// 描画
@@ -298,8 +299,8 @@ func (m *model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.confirmCancel = false
 	}
 	if m.showLog {
-		data, _ := os.ReadFile(m.logFile)
-		lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+		m.refreshLog()
+		lines := m.logLines
 		switch key {
 		case "up", "k":
 			if m.logScroll > 0 {
@@ -355,6 +356,9 @@ func (m *model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.prompting {
 			m.showLog = !m.showLog
 			m.logScroll = 0
+			if m.showLog {
+				m.refreshLog() // 開いたときだけ読み直す
+			}
 			return m, nil
 		}
 	case "q", "Q":
@@ -435,6 +439,13 @@ func (m *model) cancelScan() {
 	if m.scanCancel != nil {
 		m.scanCancel()
 	}
+}
+
+// refreshLog はログ表示用の内容を読み直す。View は毎フレーム呼ばれ得るため、
+// ファイル全体の読み込みはログを開いたとき・キー操作のときだけ行い、
+// 結果を model にキャッシュする。
+func (m *model) refreshLog() {
+	m.logLines = readLogLines(m.logFile)
 }
 
 // interruptAndQuit は転送中の rsync も止めて、130（中断）でウィザードを終了する。

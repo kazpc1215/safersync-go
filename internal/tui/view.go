@@ -15,6 +15,16 @@ const (
 	minHeight = 12
 )
 
+// readLogLines はログファイルを行単位で読み、空なら案内の1行を返す。
+func readLogLines(path string) []string {
+	data, _ := os.ReadFile(path)
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return []string{"（ログはまだありません）"}
+	}
+	return lines
+}
+
 // View は現在のステージの全画面を描く。
 func (m model) View() string {
 	w, h := m.width, m.height
@@ -22,10 +32,9 @@ func (m model) View() string {
 		w, h = 80, 24
 	}
 	if m.showLog {
-		data, _ := os.ReadFile(m.logFile)
-		lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
-		if len(lines) == 1 && lines[0] == "" {
-			lines = []string{"（ログはまだありません）"}
+		lines := m.logLines
+		if lines == nil {
+			lines = readLogLines(m.logFile)
 		}
 		visible := m.height - 8
 		if visible < 3 {
