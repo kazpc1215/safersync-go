@@ -31,9 +31,14 @@ clean: ## dist/ を削除
 	rm -rf $(DIST)
 
 install: build ## 現在のプラットフォームのバイナリを ~/.local/bin/safersync へ
-	@command -v safersync >/dev/null 2>&1 && test "$(command -v safersync)" != "$(CURDIR)/$(DIST)/$$(go env GOOS)-$$(go env GOARCH)/$(APP)" || true
-	ln -sfn "$(CURDIR)/$(DIST)/$$(go env GOOS)-$$(go env GOARCH)/$(APP)" ~/.local/bin/$(APP)
+	@ln -sfn "$(CURDIR)/$(DIST)/$$(go env GOOS)-$$(go env GOARCH)/$(APP)" ~/.local/bin/$(APP)
 	@echo "  linked: ~/.local/bin/$(APP) -> $(CURDIR)/$(DIST)/$$(go env GOOS)-$$(go env GOARCH)/$(APP)"
+	@if command -v $(APP) >/dev/null 2>&1; then \
+	  resolved=$$(command -v $(APP)); \
+	  if [ "$$resolved" != "$$HOME/.local/bin/$(APP)" ]; then \
+	    echo "  ※ PATH 上では先に $$resolved が見つかります（このリンクが隠れる可能性があります）" >&2; \
+	  fi; \
+	fi
 
 $(TARGETS):
 	@os=$(word 1,$(subst /, ,$@)); arch=$(word 2,$(subst /, ,$@)); \
