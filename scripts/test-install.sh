@@ -71,12 +71,15 @@ if [ "$got" != "$want" ]; then
 fi
 
 echo "-- 異常系: 不正なバージョンを拒否するか"
+# $(id) はシェルで展開させず、拒否対象の文字列として渡す（SC2016 を抑止）。
+# shellcheck disable=SC2016
+bad_cmd_subst='v1.2.3$(id)'
 for bad in \
   "not-a-version" \
   "v1.2" \
   "v1.2.3/../../evil" \
   "v1.2.3;rm -rf /" \
-  'v1.2.3$(id)' \
+  "$bad_cmd_subst" \
   "v1.2.3 evil"; do
   if SAFERSYNC_RELEASES_URL="file://$mirror" PREFIX="$prefix" sh "$root/install.sh" "$bad" 2>/dev/null; then
     echo "✗ 不正なバージョンを拒否しなかった: ${bad}" >&2
