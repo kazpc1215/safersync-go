@@ -19,6 +19,9 @@ bash 版（[kazpc1215/safersync](https://github.com/kazpc1215/safersync)）の�
 特別なツールやランタイムのインストールは不要です。macOS（Intel / Apple Silicon）と Linux（x86_64 / ARM64）の
 静的リンク単一バイナリとして提供されます。
 
+Windows は非対応です（空き容量・マウント判定に `statfs`、子プロセス停止にプロセスグループを
+使っており、対応ターゲットは macOS / Linux のみです）。
+
 ### 方法 A: インストーラ（推奨・1 行）
 
 ```sh
