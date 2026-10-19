@@ -11,7 +11,7 @@ TARGETS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
 # バージョンはリリースビルド時に上書きできる。
 LDFLAGS := -s -w -X github.com/kazpc1215/safersync-go/internal/version.Version=$(VERSION)
 
-.PHONY: build test cover vet fmt clean install release formula $(TARGETS)
+.PHONY: build test cover vet fmt clean install release formula help $(TARGETS)
 
 build: $(TARGETS) ## 全ターゲットを dist/ へビルド
 
@@ -32,6 +32,7 @@ clean: ## dist/ を削除
 	rm -rf $(DIST)
 
 install: build ## 現在のプラットフォームのバイナリを ~/.local/bin/safersync へ
+	@mkdir -p ~/.local/bin
 	@ln -sfn "$(CURDIR)/$(DIST)/$$(go env GOOS)-$$(go env GOARCH)/$(APP)" ~/.local/bin/$(APP)
 	@echo "  linked: ~/.local/bin/$(APP) -> $(CURDIR)/$(DIST)/$$(go env GOOS)-$$(go env GOARCH)/$(APP)"
 	@if command -v $(APP) >/dev/null 2>&1; then \
