@@ -129,6 +129,14 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	defer stopSignals()
 	for idx, p := range pairs {
+		// 前のジョブで Ctrl-C / TERM を受けていたら、次のジョブは始めない
+		// （中断したのに次のジョブを走らせると、利用者の意図に反してコピーが続く）。
+		if jobLoopStop(ctx, lastRC) {
+			if lastRC == 0 {
+				lastRC = ExitInterrupted
+			}
+			break
+		}
 		if len(pairs) > 1 {
 			fmt.Fprintf(stdout, "\n%s=== ジョブ %d/%d ===%s\n", c.bold, idx+1, len(pairs), c.reset)
 		}
@@ -216,6 +224,12 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if rc != 0 {
 			lastRC = rc
 		}
+		if jobLoopStop(ctx, rc) {
+			if lastRC == 0 {
+				lastRC = ExitInterrupted
+			}
+			break
+		}
 
 		fmt.Fprintln(stdout)
 		switch {
@@ -234,6 +248,13 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 	return lastRC
+}
+
+// jobLoopStop は複数ジョブのループを止めるべきかを返す。
+// シグナルで context がキャンセルされた、または直近のジョブが 130 を返した
+// ときは、後続のジョブを実行しない。
+func jobLoopStop(ctx context.Context, rc int) bool {
+	return rc == ExitInterrupted || ctx.Err() != nil
 }
 
 // mountRootOf はコピー先判定に使うボリューム基点（環境変数 → 引数の順で決める）。

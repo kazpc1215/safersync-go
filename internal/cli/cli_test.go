@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -553,5 +554,20 @@ func TestRun_integrationCopyVerify(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dst2, "x.txt")); !os.IsNotExist(err) {
 		t.Errorf("dry-run なのにコピーされている: %v", err)
+	}
+}
+
+// 複数ジョブは 1 つが中断（または context キャンセル）したら後続を実行しない。
+func TestJobLoopStop(t *testing.T) {
+	if jobLoopStop(context.Background(), 0) {
+		t.Error("正常時は継続するはず")
+	}
+	if !jobLoopStop(context.Background(), ExitInterrupted) {
+		t.Error("130 なら停止するはず")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if !jobLoopStop(ctx, 0) {
+		t.Error("context キャンセルなら停止するはず")
 	}
 }
