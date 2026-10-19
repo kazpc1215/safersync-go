@@ -866,7 +866,7 @@ func TestUpdatePrompt_branches(t *testing.T) {
 	if m4.browseDir != filepath.Join(root, "newdir") {
 		t.Errorf("pickCreate 手動入力: browseDir = %q", m4.browseDir)
 	}
-	// pkFilter: 空入力はキャンセル（フィルタ維持）
+	// pkFilter: 空入力は「空で解除」（案内どおりフィルタを消す）
 	m5 := tbase()
 	m5.stage = stSourceDir
 	m5.browse(root, "コピー元", false)
@@ -875,8 +875,8 @@ func TestUpdatePrompt_branches(t *testing.T) {
 	m5.prompt = "   "
 	m5.promptKind = pkFilter
 	m5 = stepKey(m5, enter())
-	if m5.browseFilter != "old" {
-		t.Errorf("空入力でフィルタが変わる: %q", m5.browseFilter)
+	if m5.browseFilter != "" {
+		t.Errorf("空入力でフィルタが解除されていない: %q", m5.browseFilter)
 	}
 	// pkExclude
 	m6 := tbase()

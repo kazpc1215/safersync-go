@@ -572,3 +572,27 @@ func TestPreviewTabScrolls(t *testing.T) {
 		t.Errorf("Tab 切替でスクロール位置が戻らない: %d", m.previewScroll)
 	}
 }
+
+// 手動入力の相対パスは現在のフォルダ基準で解決する。
+func TestUpdatePrompt_manualRelativePath(t *testing.T) {
+	root := t.TempDir()
+	cur := filepath.Join(root, "cur")
+	next := filepath.Join(cur, "next")
+	if err := os.MkdirAll(next, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := tbase()
+	m.stage = stSourceDir
+	m.browseDir = cur
+	m.prompting = true
+	m.promptKind = pkManual
+	m.prompt = "next"
+	m = stepKey(m, enter())
+	if m.browseDir != next {
+		t.Errorf("相対パスが現在のフォルダ基準で解決されていない: %q (want %q)", m.browseDir, next)
+	}
+
+	if got := manualPath(cur, "/abs"); got != "/abs" {
+		t.Errorf("絶対パスを変更した: %q", got)
+	}
+}

@@ -5,6 +5,7 @@ package tui
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -694,8 +695,9 @@ func (m *model) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.sel = 0
 			return m, nil
 		}
-		// 手動入力
-		p := core.AbsPath(input)
+		// 手動入力。相対パスは現在のフォルダ基準で解釈する（プロセスの
+		// カレントディレクトリ基準だと、TUI で見ている場所と食い違う）。
+		p := manualPath(m.browseDir, input)
 		if ok, _ := isDirFollow(p); ok {
 			m.browseDir = p
 			m.sel = 0
@@ -845,6 +847,15 @@ func tuiExitCode(rc int) int {
 	default:
 		return core.ExitError
 	}
+}
+
+// manualPath は手動入力のパスを絶対パスへ解決する。相対パスは base
+// （現在のフォルダ）基準、~ と絶対パスはそのまま解釈する。
+func manualPath(base, input string) string {
+	if strings.HasPrefix(input, "~") || filepath.IsAbs(input) {
+		return core.AbsPath(input)
+	}
+	return core.AbsPath(filepath.Join(base, input))
 }
 
 func mod(a, n int) int {
