@@ -491,3 +491,67 @@ func TestRun_tuiRequiresTTY(t *testing.T) {
 		t.Errorf("対話端末でのみ起動できる旨が出ていない: %q", errOut.String())
 	}
 }
+
+// 実際の rsync を通して コピー → 照合 → dry-run → 除外 まで確認する統合テスト。
+func TestRun_integrationCopyVerify(t *testing.T) {
+	if !core.RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	src, dst := t.TempDir(), t.TempDir()
+	mustWrite := func(p, s string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite(filepath.Join(src, "a.txt"), "hello")
+	mustWrite(filepath.Join(src, "sub", "b.txt"), "world")
+	mustWrite(filepath.Join(src, "sub", "c.tmp"), "temp")
+
+	// 除外つきコピー → 自動照合 OK
+	var out, errOut bytes.Buffer
+	args := []string{"--exclude", "*.tmp", src, dst}
+	if code := Run(args, &out, &errOut); code != ExitOK {
+		t.Fatalf("copy: want 0, got %d (stdout=%q stderr=%q)", code, out.String(), errOut.String())
+	}
+	if !strings.Contains(out.String(), "照合 OK") {
+		t.Errorf("照合 OK が出ていない: %q", out.String())
+	}
+	if _, err := os.Stat(filepath.Join(dst, "a.txt")); err != nil {
+		t.Errorf("a.txt がコピーされていない: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "sub", "b.txt")); err != nil {
+		t.Errorf("sub/b.txt がコピーされていない: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "sub", "c.tmp")); !os.IsNotExist(err) {
+		t.Errorf("除外した *.tmp がコピーされている: %v", err)
+	}
+
+	// 同じ条件の再実行は「すべて最新」（転送なし）
+	out.Reset()
+	errOut.Reset()
+	if code := Run(args, &out, &errOut); code != ExitOK {
+		t.Fatalf("2回目: want 0, got %d (stderr=%q)", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "すべて最新") {
+		t.Errorf("2回目が「すべて最新」になっていない: %q", out.String())
+	}
+
+	// dry-run はコピーしない
+	src2, dst2 := t.TempDir(), t.TempDir()
+	mustWrite(filepath.Join(src2, "x.txt"), "x")
+	out.Reset()
+	errOut.Reset()
+	if code := Run([]string{"-n", src2, dst2}, &out, &errOut); code != ExitOK {
+		t.Fatalf("dry-run: want 0, got %d (stderr=%q)", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "dry-run") {
+		t.Errorf("dry-run の表示が無い: %q", out.String())
+	}
+	if _, err := os.Stat(filepath.Join(dst2, "x.txt")); !os.IsNotExist(err) {
+		t.Errorf("dry-run なのにコピーされている: %v", err)
+	}
+}
