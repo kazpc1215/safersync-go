@@ -114,6 +114,37 @@ func TestIsInsideRelative(t *testing.T) {
 	}
 }
 
+// シンボリックリンク経由でも「実は内側／外側」を取り違えないこと。
+func TestIsInsideSymlink(t *testing.T) {
+	base := t.TempDir()
+	real := filepath.Join(base, "photos")
+	if err := os.MkdirAll(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("シンボリックリンクを作成できないためスキップ: %v", err)
+	}
+
+	// link は real を指すので link/backup は real の内側
+	if !IsInside(real, filepath.Join(link, "backup")) {
+		t.Error("シンボリックリンク経由の内側を見落とした")
+	}
+
+	// src 内のリンクが外を指す場合は内側ではない（入れ子にならない）
+	outside := filepath.Join(base, "outside")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	linkOut := filepath.Join(real, "to-outside")
+	if err := os.Symlink(outside, linkOut); err != nil {
+		t.Skipf("シンボリックリンクを作成できないためスキップ: %v", err)
+	}
+	if IsInside(real, filepath.Join(linkOut, "backup")) {
+		t.Error("外を指すリンクを内側と誤判定した")
+	}
+}
+
 // Linux の mount が出すエスケープ表記（空白→\040）でもマウントポイントを検出できること。
 func TestContainsMountPoint(t *testing.T) {
 	out := "/dev/sda1 on / type ext4 (rw)\n" +

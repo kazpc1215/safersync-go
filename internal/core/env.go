@@ -119,13 +119,15 @@ func AbsPath(p string) string {
 // 「コピー先がコピー元の中にある」状態で実行すると、追加のみ（--delete なし）の
 // 設計のため、実行のたびにコピーが入れ子（backup/backup/...）になり容量を
 // 圧迫し続ける。開始前にこの事故を検出するために使う。
-// 相対パスはカレント基準の絶対パスにしてから比較し、".." も解決する。
+//
+// 相対パスはカレント基準の絶対パスにしてから比較し、".." とシンボリックリンクも
+// 解決する（リンク経由で実は内側／外側というケースを取り違えないため）。
 func IsInside(parent, child string) bool {
 	if parent == "" || child == "" {
 		return false
 	}
-	parent = filepath.Clean(AbsPath(parent))
-	child = filepath.Clean(AbsPath(child))
+	parent = resolvePath(parent)
+	child = resolvePath(child)
 	if parent == child {
 		return true
 	}
@@ -134,6 +136,32 @@ func IsInside(parent, child string) bool {
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// resolvePath はパス中のシンボリックリンクを実体へ解決する。存在しない部分は
+// そのまま残す（コピー先は実行前に存在しないことが多いため）。存在する最深の
+// 祖先まで解決し、残りの要素を足し戻す。
+func resolvePath(p string) string {
+	abs := filepath.Clean(AbsPath(p))
+	cur, rest := abs, ""
+	for {
+		if resolved, err := filepath.EvalSymlinks(cur); err == nil {
+			if rest == "" {
+				return resolved
+			}
+			return filepath.Join(resolved, rest)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs // これ以上戻れない（"/"）
+		}
+		if rest == "" {
+			rest = filepath.Base(cur)
+		} else {
+			rest = filepath.Join(filepath.Base(cur), rest)
+		}
+		cur = parent
+	}
 }
 
 func cwd() string {
