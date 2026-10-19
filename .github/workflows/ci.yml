@@ -68,6 +68,9 @@ jobs:
         with:
           repository: kazpc1215/safersync
           path: bash
+          # 上流は凍結済みだが、再現性のため main の特定コミットへ固定する
+          # （上流の追加変更で CI が不安定にならないように）。
+          ref: 40d9e40beb9979f226eeafd1c334ccef3b2edcee
       - name: bats と shellcheck を導入（bats を bash 5 で動かすため bash も入れる）
         run: |
           brew install bats-core shellcheck bash
