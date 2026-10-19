@@ -3,6 +3,18 @@
 本プロジェクトの主な変更点を記録します。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、
 バージョニングは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [1.5.2] - 2026-10-19
+
+Go のソースに変更はなく、機能差のない CI/CD のメンテナンスリリースです。
+
+### 変更
+
+- GitHub Actions の Node.js 20 非推奨警告を解消しました。`actions/checkout` を v7、
+  `actions/setup-go` を v7、`softprops/action-gh-release` を v3 へ更新しました（いずれも
+  Node 24 ランタイム）
+- Go テストの実行環境を `ubuntu-latest` から `ubuntu-24.04` に明示固定し、ラベル移行の
+  通知を抑止しました
+
 ## [1.5.1] - 2026-10-19
 
 ### 修正
@@ -116,7 +128,8 @@
 個々の変更はリリースノートと git 履歴を参照してください:
 <https://github.com/kazpc1215/safersync-go/releases>
 
-[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/kazpc1215/safersync-go/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/kazpc1215/safersync-go/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/kazpc1215/safersync-go/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/kazpc1215/safersync-go/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/kazpc1215/safersync-go/compare/v1.4.1...v1.4.2
