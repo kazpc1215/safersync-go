@@ -1,4 +1,7 @@
 /dist/
-/safersync*
+/safersync
+/safersync.exe
+*.test
 *.log
 /coverage.out
+.DS_Store
