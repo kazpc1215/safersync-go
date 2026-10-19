@@ -374,6 +374,9 @@ func (j *Job) rsyncArgs() []string {
 		args = append(args, "--out-format=%i")
 	}
 	args = append(args, j.excludeArgs()...)
+	if j.Checksum {
+		args = append(args, "--checksum")
+	}
 	args = append(args, j.Src+"/", j.Dst+"/")
 	switch {
 	case j.Verbose:

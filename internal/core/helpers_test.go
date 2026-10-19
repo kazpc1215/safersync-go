@@ -682,3 +682,35 @@ func TestProgressFrom(t *testing.T) {
 		t.Errorf("elapsed<1: speed=%d, want 100", speed)
 	}
 }
+
+// --checksum は実コピーでも rsync に渡す（同サイズ・同 mtime の内容違いを検出する）。
+func TestCopyOneChecksumDetectsSameSizeSameTime(t *testing.T) {
+	if !RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	src, dst := t.TempDir(), t.TempDir()
+	srcFile := filepath.Join(src, "f.txt")
+	dstFile := filepath.Join(dst, "f.txt")
+	if err := os.WriteFile(srcFile, []byte("aaaa"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dstFile, []byte("bbbb"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := os.Stat(srcFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(dstFile, st.ModTime(), st.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errb bytes.Buffer
+	j := &Job{Src: src, Dst: dst, FAT: true, Checksum: true, Out: &out, Err: &errb}
+	if rc := CopyOne(j); rc != 0 {
+		t.Fatalf("CopyOne = %d, err=%s", rc, errb.String())
+	}
+	if b, err := os.ReadFile(dstFile); err != nil || string(b) != "aaaa" {
+		t.Fatalf("チェックサム指定でも更新されていない: %v / %q", err, b)
+	}
+}
