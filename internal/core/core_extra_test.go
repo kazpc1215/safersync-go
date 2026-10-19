@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -206,5 +207,42 @@ func TestPlanChangesTruncatesDetails(t *testing.T) {
 	}
 	if len(plan.Lines) != maxPlanDetails || len(plan.Transfer) != maxPlanDetails {
 		t.Errorf("詳細の件数 = %d / %d, want %d", len(plan.Lines), len(plan.Transfer), maxPlanDetails)
+	}
+}
+
+// 進捗用の --out-format 出力から差分行だけを取り除き、--stats の集計行は残す。
+func TestWriteNonDiffOutput(t *testing.T) {
+	data := []byte(strings.Join([]string{
+		"cd+++++++++ 0 ./",
+		">f+++++++++ 5 a.txt",
+		".f...p..... 3 b.txt",
+		"Number of files: 2 (reg: 2)",
+		"Total file size: 8 bytes",
+	}, "\n"))
+	var out bytes.Buffer
+	writeNonDiffOutput(&out, data)
+	got := out.String()
+	for _, item := range []string{">f+++++++++ 5 a.txt", ".f...p..... 3 b.txt", "cd+++++++++ 0 ./"} {
+		if strings.Contains(got, item) {
+			t.Errorf("差分行が出力に残っている: %q", item)
+		}
+	}
+	for _, want := range []string{"Number of files: 2 (reg: 2)", "Total file size: 8 bytes"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("統計行が出力されていない: %q\n%s", want, got)
+		}
+	}
+}
+
+func TestIsRsyncItemLine(t *testing.T) {
+	for _, line := range []string{">f+++++++++ 5 a.txt", "cd+++++++++ 0 ./", ".d..t...... 1 x", "cL+++++++++ 6 link"} {
+		if !isRsyncItemLine(line) {
+			t.Errorf("差分として判定できない: %q", line)
+		}
+	}
+	for _, line := range []string{"Number of files: 2", "Total file size: 8 bytes", "", ">f"} {
+		if isRsyncItemLine(line) {
+			t.Errorf("差分と誤判定した: %q", line)
+		}
 	}
 }
