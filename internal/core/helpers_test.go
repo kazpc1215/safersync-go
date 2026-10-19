@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -754,5 +755,33 @@ func TestCopyOneNonRegularChanges(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "転送するものはありません") {
 		t.Errorf("2回目が差分なしになっていない:\n%s", out.String())
+	}
+}
+
+// Linux でも root 直下を全ボリューム扱いしない既定値を使う。
+func TestDefaultMountRoot(t *testing.T) {
+	root := DefaultMountRoot()
+	if !filepath.IsAbs(root) {
+		t.Fatalf("絶対パスでない: %q", root)
+	}
+	if runtime.GOOS == "darwin" && root != "/Volumes" {
+		t.Errorf("macOS は /Volumes のはず: %q", root)
+	}
+	if runtime.GOOS != "darwin" && root == "/" {
+		t.Errorf("Linux で / を基点にしている: %q", root)
+	}
+}
+
+// statfs の fsid 比較でマウントポイントを判定できる。
+func TestMountPointByFsid(t *testing.T) {
+	known, is := mountPointByFsid("/")
+	if !known {
+		t.Fatal("statfs が失敗した")
+	}
+	if is {
+		t.Error("/ を親と別のファイルシステムと誤判定した")
+	}
+	if known, _ := mountPointByFsid(filepath.Join(t.TempDir(), "nope")); known {
+		t.Error("存在しないパスで statfs が成功扱いになった")
 	}
 }

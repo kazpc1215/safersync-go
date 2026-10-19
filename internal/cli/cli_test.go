@@ -5,7 +5,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -365,10 +364,7 @@ func TestParse_helpStatusTUI(t *testing.T) {
 func TestMountRootOf(t *testing.T) {
 	opts := &core.Options{}
 	t.Setenv("SAFERSYNC_MOUNT_ROOT", "")
-	want := "/Volumes"
-	if runtime.GOOS != "darwin" {
-		want = "/"
-	}
+	want := core.DefaultMountRoot()
 	if got := mountRootOf(opts); got != want {
 		t.Errorf("既定 = %q, want %q", got, want)
 	}

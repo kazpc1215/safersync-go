@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -260,10 +259,7 @@ func jobLoopStop(ctx context.Context, rc int) bool {
 // mountRootOf はコピー先判定に使うボリューム基点（環境変数 → 引数の順で決める）。
 // 引数・環境変数ともに絶対パスへそろえる（bash 版と同じ）。
 func mountRootOf(opts *core.Options) string {
-	root := "/Volumes"
-	if runtime.GOOS != "darwin" {
-		root = "/"
-	}
+	root := core.DefaultMountRoot()
 	if v := os.Getenv("SAFERSYNC_MOUNT_ROOT"); v != "" {
 		root = v
 	}

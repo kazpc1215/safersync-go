@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 )
@@ -18,20 +19,71 @@ import (
 // マウント判定
 // ---------------------------------------------------------------------------
 
+// DefaultMountRoot はプラットフォームごとの外付けボリューム基点を返す。
+// macOS は /Volumes。Linux はディストリビューションごとに /media/<user> と
+// /run/media/<user> に分かれるため、存在する方を優先し、無ければ /media を使う。
+// "/" を返すと root 直下の全フォルダをボリュームとして扱ってしまうため避ける。
+func DefaultMountRoot() string {
+	if runtime.GOOS == "darwin" {
+		return "/Volumes"
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		user := filepath.Base(home)
+		for _, cand := range []string{
+			filepath.Join("/run/media", user),
+			filepath.Join("/media", user),
+		} {
+			if fi, err := os.Stat(cand); err == nil && fi.IsDir() {
+				return cand
+			}
+		}
+	}
+	if fi, err := os.Stat("/media"); err == nil && fi.IsDir() {
+		return "/media"
+	}
+	return "/mnt"
+}
+
 // IsMountPoint はパスそのものがマウントポイントかどうか。
-// bash 版と同じく `mount` の出力に " on <path> " が現れるかで判定する。
-// Linux の `mount` はマウントポイントの空白・タブ・改行・バックスラッシュを
-// \040 などの形にエスケープして出すことがあるため、両方の表記を照合する。
+//
+// まず statfs のファイルシステム ID を親と比べる。異なればマウントポイント。
+// 同じ場合は bind mount の可能性があるため、`mount` の出力も照合する
+// （bash 版と同じ表記。Linux の \040 エスケープにも対応）。
 func IsMountPoint(path string) bool {
 	fi, err := os.Stat(path)
 	if err != nil || !fi.IsDir() {
 		return false
+	}
+	if path == "/" {
+		return true
+	}
+	if known, is := mountPointByFsid(path); known {
+		if is {
+			return true
+		}
+		// 同じ fsid でも bind mount かもしれないため mount 出力で確認する。
+	} else {
+		// statfs が使えない環境では従来どおり mount 出力だけで判定する。
 	}
 	out, err := exec.Command("mount").Output()
 	if err != nil {
 		return false
 	}
 	return containsMountPoint(string(out), path)
+}
+
+// mountPointByFsid は statfs の Fsid を親と比較する。
+// 判定できたら (known=true, isMount=...) を返す。statfs が失敗したら known=false。
+func mountPointByFsid(path string) (known, isMount bool) {
+	parent := filepath.Dir(path)
+	var st, pst syscall.Statfs_t
+	if err := syscall.Statfs(path, &st); err != nil {
+		return false, false
+	}
+	if err := syscall.Statfs(parent, &pst); err != nil {
+		return false, false
+	}
+	return true, st.Fsid != pst.Fsid
 }
 
 // containsMountPoint は mount の出力に path がマウントポイントとして現れるかを返す。
