@@ -101,6 +101,9 @@ func (m *model) beginTransfer() error {
 	// プレビューで走査済みのコピー元を引き継ぎ、転送開始時の再走査を省く
 	// （大きなツリーほど効く）。srcScan はプレビュー（planReadyMsg）で必ず設定される。
 	job.SetSrcScan(m.srcScan)
+	// 進捗の分母は今回の転送量（総ファイルサイズではない）。
+	job.PlanBytes = m.plan.Bytes
+	job.PlanFiles = m.plan.Files
 
 	t := job.StartTransfer()
 	if err := t.StartError(); err != nil {

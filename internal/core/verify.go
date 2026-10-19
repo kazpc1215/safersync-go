@@ -10,11 +10,13 @@ import (
 
 // VerifyOne はコピー先とコピー元を照合する。戻り値は終了コード（0 / 1）。
 func VerifyOne(j *Job) int {
-	if !isDir(j.Src) {
+	// ローカルのパスだけ事前確認する。リモートはローカルから stat できないため、
+	// 存在確認は rsync（下の dry-run）に任せる。
+	if !IsRemote(j.Src) && !isDir(j.Src) {
 		fmt.Fprintf(j.Err, "✗ コピー元が存在しません: %s\n", j.Src)
 		return 1
 	}
-	if !isDir(j.Dst) {
+	if !IsRemote(j.Dst) && !isDir(j.Dst) {
 		fmt.Fprintf(j.Err, "✗ コピー先が存在しません: %s\n", j.Dst)
 		return 1
 	}
@@ -61,6 +63,14 @@ func VerifyOne(j *Job) int {
 	// 集計は「参考情報」。転送先の余分なファイルは許容するため、
 	// 数が一致しなくても失敗にしない（合否判定は上の rsync 差分で行う）。
 	// コピー元は処理中に変化しないので、進捗表示と共有した走査結果を使う。
+	// リモートが絡むとローカルからは数えられないので、集計自体を省略する。
+	if IsRemote(j.Src) || IsRemote(j.Dst) {
+		fmt.Fprintln(j.Out, "    （リモートのためファイル数の集計は省略）")
+		fmt.Fprintln(j.Out, "✓ 照合 OK（コピー元の全ファイルが転送先に存在）")
+		j.log(fmt.Sprintf("VERIFY ok   %s vs %s [remote]", j.Src, j.Dst))
+		return 0
+	}
+
 	s := j.SrcScan()
 	d := ScanDir(j.Dst, j.AllExcludePatterns())
 	extra := d.Files - s.Files

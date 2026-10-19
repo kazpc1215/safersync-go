@@ -87,6 +87,21 @@ safersync ~/写真 /Volumes/HDD/backup              # コピー元 → コピー
 safersync --dry-run ~/写真 /Volumes/HDD/backup   # 転送内容のプレビューのみ
 ```
 
+### リモートへのコピー（CLI のみ）
+
+コピー元・コピー先には rsync のリモート表記も指定できます（`[user@]host:path`、
+`rsync://host/module`）。SSH は rsync 側の設定（鍵・`~/.ssh/config`）に従います。
+
+```sh
+safersync ~/写真 backup@nas:/volume1/写真      # リモート先へ
+safersync user@host:/data /Volumes/HDD/backup  # リモート元から
+```
+
+- リモートは**CLI 専用**です（対話ウィザードはボリューム選択のためローカルのみ）。
+- リモートが絡む場合、**空き容量の確認**と**ファイル数の集計**（参考情報）は行いません。
+  リモート先の進捗はバイト数ではなく**ファイル件数**で表示します。
+- 照合（コピー後の自動照合）はリモートでも rsync の差分で行います。
+
 ### TUI（対話ウィザード）
 
 ```sh

@@ -157,6 +157,11 @@ type ScanResult struct {
 // ファイル数と合計バイト数を返す。走査中のエラー（権限など）は無視する。
 func ScanDir(dir string, excludes []string) ScanResult {
 	var res ScanResult
+	// リモート先はローカルからは走査できない（host:path を WalkDir しても失敗する）。
+	// 呼び出し側は 0 件として扱い、進捗は rsync の出力から数える。
+	if IsRemote(dir) {
+		return res
+	}
 	// 既定の除外（DEFAULT_EXCLUDES 相当）+ ユーザー指定を合わせて適用する。
 	// bash 版は rsync の --exclude と同じ組み合わせを find -prune にも使う。
 	pats := append(append([]string{}, DefaultExcludes...), excludes...)

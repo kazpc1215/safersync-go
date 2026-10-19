@@ -61,6 +61,27 @@ func DrawProgress(pct int, done, total, speed, eta int64) string {
 	return b.String()
 }
 
+// DrawProgressFiles はリモート先など転送量（バイト）をローカルで数えられない
+// ときの進捗1行分（件数ベース）。速度は「件/秒」になる。
+func DrawProgressFiles(pct int, done, total int64, speed float64, eta int64) string {
+	var b strings.Builder
+	if width := progressWidth(); width > 0 {
+		filled := pct * width / 100
+		bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+		b.WriteString("[" + bar + "] ")
+	}
+	etaTxt := "--"
+	if eta >= 0 {
+		etaTxt = "約 " + FmtDuration(eta)
+	}
+	tail := "  残り " + etaTxt
+	if pct >= 100 {
+		tail = ""
+	}
+	fmt.Fprintf(&b, "%3d%%  %d / %d ファイル  %.1f件/秒%s", pct, done, total, speed, tail)
+	return b.String()
+}
+
 // ---------------------------------------------------------------------------
 // rsync 実行ヘルパ
 // ---------------------------------------------------------------------------
@@ -149,12 +170,24 @@ func runPlain(cmd *exec.Cmd, j *Job) int {
 // 進捗つき実行（bash 版 run_with_progress）
 // ---------------------------------------------------------------------------
 
-// runWithProgress は cmd を実行しながら、転送先の増分から進捗と残り時間を表示する。
+// runWithProgress は cmd を実行しながら進捗と残り時間を表示する。
+//   - ローカル: 転送先の増分バイト数から計算（分母は「開始時の転送先 + 今回の転送量」）。
+//   - リモート: 転送先をローカル走査できないため、rsync が出力する転送ファイルの
+//     印（--out-format=%i の ">f..."）の件数から計算する。
+//
 // Ctrl-C / TERM で子プロセスも確実に止め、終了コード 130 を返す。
 func runWithProgress(cmd *exec.Cmd, j *Job) int {
-	total := j.SrcScan().Bytes
-	base := ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
+	// 転送量はコピー先のバイト増分で測るため、コピー先がローカルでなければ
+	// バイト走査ができない（コピー元のリモート可否は無関係）。
+	remote := IsRemote(j.Dst)
 	start := time.Now()
+
+	// ローカルのみ: 開始時点の転送先バイト数を基準に、分母を「基準 + 今回の転送量」にする。
+	var base, total int64
+	if !remote {
+		base = ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
+		total = base + j.PlanBytes
+	}
 
 	// 走査は別 goroutine で行い、シグナル受付・描画をブロックしない（大きなツリー対策）。
 	// 直前の走査結果がまだ無ければ base を使う。
@@ -204,6 +237,13 @@ loop:
 			if interrupted {
 				continue
 			}
+			if remote {
+				files := countTransferredFiles(tmp.Name())
+				p, speed, eta := progressCountFrom(files, int64(j.PlanFiles), start, time.Now())
+				fmt.Fprintf(j.Out, "\r\033[K  %s",
+					DrawProgressFiles(p, files, int64(j.PlanFiles), speed, eta))
+				continue
+			}
 			// 非同期走査: 実行中なら前回値を使い、UI/シグナル処理を止めない
 			scanMu.Lock()
 			busy := scanning
@@ -226,14 +266,20 @@ loop:
 			if db == 0 {
 				db = base
 			}
-			p, doneBytes, speed, eta := progressFrom(db, total, base, start, time.Now())
+			p, doneBytes, speed, eta := progressFrom(db, base, j.PlanBytes, start, time.Now())
 			fmt.Fprintf(j.Out, "\r\033[K  %s", DrawProgress(p, doneBytes, total, speed, eta))
 		}
 	}
 
 	fmt.Fprint(j.Out, "\r\033[K")
 	if data, _ := os.ReadFile(tmp.Name()); len(data) > 0 {
-		_, _ = j.Out.Write(data)
+		// リモートの進捗用出力（--out-format=%i）はファイル名の羅列なので、
+		// 成功時は表示しない。失敗時のみ原因究明のため stderr へ回す。
+		if !remote {
+			_, _ = j.Out.Write(data)
+		} else if rc != 0 || interrupted {
+			_, _ = j.Err.Write(data)
+		}
 	}
 	if interrupted {
 		fmt.Fprintln(j.Err, "中断しました")
@@ -243,6 +289,23 @@ loop:
 		return rc
 	}
 	return 0
+}
+
+// countTransferredFiles は rsync の --out-format=%i 出力から、転送された通常
+// ファイルの行数（行頭が ">f"）を数える。ディレクトリ作成（"cd..."）や
+// 属性のみの変化（".f..."）は数えない。
+func countTransferredFiles(path string) int64 {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	var n int64
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, ">f") {
+			n++
+		}
+	}
+	return n
 }
 
 func exitCodeOf(err error) int {
@@ -263,17 +326,23 @@ func exitCodeOf(err error) int {
 func (j *Job) rsyncArgs() []string {
 	args := append([]string{}, j.rsyncMetaOpts()...)
 	args = append(args, "--human-readable", "--partial")
-	if j.ListFiles {
+	switch {
+	case j.ListFiles:
 		args = append(args, "--out-format=%n")
+	case j.ProgressFiles:
+		// リモート先はローカルでバイトを数えられないため、転送したファイルの
+		// 印（%i の ">f..."）を行数として数える。ディレクトリ作成（"cd..."）は
+		// ">" で始まらないので数えない。
+		args = append(args, "--out-format=%i")
 	}
 	args = append(args, j.excludeArgs()...)
 	args = append(args, j.Src+"/", j.Dst+"/")
 	switch {
 	case j.Verbose:
 		args = append(args, "--stats")
-	case j.ListFiles:
-		// -q は --out-format の出力（TUI のファイル名表示）も抑制してしまうため、
-		// ファイル名を出すときは付けない（エラーは stderr に出る）。
+	case j.ListFiles || j.ProgressFiles:
+		// -q は --out-format の出力（進捗の数え上げ・TUI のファイル名表示）も
+		// 抑制してしまうため、出力を使うときは付けない（エラーは stderr に出る）。
 	default:
 		args = append(args, "-q")
 	}
@@ -282,10 +351,13 @@ func (j *Job) rsyncArgs() []string {
 
 const progressInterval = 2 * time.Second
 
-// scanProgress は転送先の累計バイト数から進捗を計算する（bash 版 run_with_progress / TUI 版共通）。
 // progressFrom は走査済みの dst バイト数から進捗を計算する（走査そのものは含まない）。
 // 非同期走査（runWithProgress / Transfer.Frame）から使う。
-func progressFrom(doneBytes, total, base int64, start time.Time, now time.Time) (p int, done, speed, eta int64) {
+//
+// 分母は「開始時の転送先(base) + 今回の転送量(planBytes)」。総ファイルサイズでは
+// なく今回の転送量を基準にするため、差分コピー（再開・追記）でも進捗が 0% から
+// 100% まで動く。planBytes が不明（<=0）のときは従来どおり 100% 扱い。
+func progressFrom(doneBytes, base, planBytes int64, start time.Time, now time.Time) (p int, done, speed, eta int64) {
 	elapsed := int64(now.Sub(start).Seconds())
 	if elapsed < 1 {
 		elapsed = 1
@@ -296,30 +368,67 @@ func progressFrom(doneBytes, total, base int64, start time.Time, now time.Time) 
 	}
 	speed = gained / elapsed
 	p = 100
-	if total > 0 {
-		p = int(doneBytes * 100 / total)
-		if p > 100 {
-			p = 100
-		}
+	if planBytes > 0 {
+		p = int(gained * 100 / planBytes)
+	}
+	if p > 100 {
+		p = 100
+	}
+	if p < 0 {
+		p = 0
 	}
 	eta = -1
-	if speed > 0 && total > doneBytes {
-		eta = (total - doneBytes) / speed
+	if speed > 0 && planBytes > gained {
+		eta = (planBytes - gained) / speed
 	}
 	return p, doneBytes, speed, eta
 }
 
-// scanProgress は転送先を走査して進捗を計算する（bash 版 run_with_progress / TUI 版共通）。
-func scanProgress(watched *Job, total, base int64, start time.Time, now time.Time) (p int, done, speed, eta int64) {
-	doneBytes := ScanDir(watched.Dst, watched.AllExcludePatterns()).Bytes
-	return progressFrom(doneBytes, total, base, start, now)
+// progressCountFrom は転送済みファイル数から進捗を計算する（件数ベース）。
+// リモート先など、転送量（バイト）をローカルで数えられない場合に使う。
+// 速度は件/秒（小数）で返す。
+func progressCountFrom(doneFiles, planFiles int64, start time.Time, now time.Time) (p int, speed float64, eta int64) {
+	elapsed := int64(now.Sub(start).Seconds())
+	if elapsed < 1 {
+		elapsed = 1
+	}
+	if doneFiles < 0 {
+		doneFiles = 0
+	}
+	p = 100
+	if planFiles > 0 {
+		p = int(doneFiles * 100 / planFiles)
+	}
+	if p > 100 {
+		p = 100
+	}
+	speed = float64(doneFiles) / float64(elapsed)
+	eta = -1
+	if speed > 0 && planFiles > doneFiles {
+		eta = int64(float64(planFiles-doneFiles) / speed)
+	}
+	return p, speed, eta
+}
+
+// ensureLocalDest はローカルのコピー先フォルダを作る。リモート先（host:path）
+// はローカルに同名のディレクトリを作ってしまう（"user@host:" という迷子
+// フォルダ）ため何もしない（作成は rsync が行う）。
+func ensureLocalDest(dst string) error {
+	if IsRemote(dst) {
+		return nil
+	}
+	return os.MkdirAll(dst, 0o755)
 }
 
 // CopyOne は1組のコピーを実行する。戻り値は終了コード（0 / 1 / 3 / 130）。
 func CopyOne(j *Job) int {
-	if fi, err := os.Stat(j.Src); err != nil || !fi.IsDir() {
-		fmt.Fprintf(j.Err, "✗ コピー元が存在しません: %s\n", j.Src)
-		return 1
+	// ローカルのコピー元だけ事前に確認する。リモート元はローカルから stat できず、
+	// ここで弾くと「リモート元が使えない」ことになる（存在確認は rsync が行う）。
+	if !IsRemote(j.Src) {
+		if fi, err := os.Stat(j.Src); err != nil || !fi.IsDir() {
+			fmt.Fprintf(j.Err, "✗ コピー元が存在しません: %s\n", j.Src)
+			return 1
+		}
 	}
 
 	// ボリュームの直下を指定すると中身が散らばるので、先に知らせる（ローカルのみ）
@@ -344,6 +453,10 @@ func CopyOne(j *Job) int {
 		return 0
 	}
 
+	// 進捗の分母に使う（総ファイルサイズではなく今回の転送量）。
+	j.PlanBytes = plan.Bytes
+	j.PlanFiles = plan.Files
+
 	if j.DryRun {
 		fmt.Fprintf(j.Out, "    コピーするファイル: %d 件（%s） ※dry-run のため実際にはコピーしません\n",
 			plan.Files, FmtBytes(plan.Bytes))
@@ -362,10 +475,14 @@ func CopyOne(j *Job) int {
 		return 0
 	}
 
-	// 空き容量の確認（足りなければ、始める前に止める）
-	if !j.IgnoreSpace {
-		free := FreeBytes(j.Dst)
-		if free > 0 && plan.Bytes > free {
+	// 空き容量の確認（足りなければ、始める前に止める）。
+	// リモート先の空き容量はローカルから確認できないため、その旨だけ知らせる。
+	switch {
+	case j.IgnoreSpace:
+	case IsRemote(j.Dst):
+		fmt.Fprintln(j.Out, "    リモート先の空き容量は確認できません（rsync に任せます）")
+	default:
+		if free := FreeBytes(j.Dst); free > 0 && plan.Bytes > free {
 			fmt.Fprintf(j.Err, "✗ 空き容量が足りません: コピーする量 %s / 空き %s\n",
 				FmtBytes(plan.Bytes), FmtBytes(free))
 			fmt.Fprintln(j.Err, "✗ 不要なファイルを削除するか、別の保存先を指定してください。")
@@ -375,9 +492,17 @@ func CopyOne(j *Job) int {
 		}
 	}
 
-	if err := os.MkdirAll(j.Dst, 0o755); err != nil {
+	// ローカルのコピー先だけ作成する。リモート先はローカルにディレクトリを
+	// 作ってしまう（"user@host:" という迷子フォルダ）ので触らない。
+	if err := ensureLocalDest(j.Dst); err != nil {
 		fmt.Fprintf(j.Err, "✗ コピー先を作成できません: %s\n", j.Dst)
 		return 1
+	}
+
+	// リモート先の進捗はバイト数をローカルで数えられないため、ファイルの印を
+	// 数えるモードに切り替える（rsync 引数の組み立て前に設定する）。
+	if j.ShowProgress && IsRemote(j.Dst) {
+		j.ProgressFiles = true
 	}
 
 	fmt.Fprintf(j.Out, "    コピーするファイル: %d 件（%s）\n", plan.Files, FmtBytes(plan.Bytes))

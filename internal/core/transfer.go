@@ -20,7 +20,7 @@ import (
 //	- Wait は一度だけ呼ぶ（戻るまでブロック）
 type Transfer struct {
 	Job   *Job
-	Total int64 // src 全体のバイト数
+	Total int64 // 進捗の分母（開始時の dst バイト数 + 今回の転送量 PlanBytes）
 	Base  int64 // src/転送開始時点の dst のバイト数
 
 	start    time.Time
@@ -41,8 +41,10 @@ type Transfer struct {
 // 転送先の走査を使う。
 func (j *Job) StartTransfer() *Transfer {
 	t := &Transfer{Job: j, start: time.Now()}
-	t.Total = j.SrcScan().Bytes
+	// 進捗の分母は「開始時の転送先バイト数 + 今回の転送量(PlanBytes)」。総ファイル
+	// サイズを使うと差分コピーで開始直後から 100% になるため、今回の転送量を使う。
 	t.Base = ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
+	t.Total = t.Base + j.PlanBytes
 	t.lastDstBytes = t.Base
 	// 転送中ファイル名を拾うために rsync の出力を一時ファイルへ退避する
 	f, _ := os.CreateTemp("", "safersync-tui-*")
@@ -99,7 +101,7 @@ func (t *Transfer) Frame() (pct int, done, total, speed, eta int64) {
 	if db == 0 {
 		db = t.Base
 	}
-	pct, done, speed, eta = progressFrom(db, t.Total, t.Base, t.start, time.Now())
+	pct, done, speed, eta = progressFrom(db, t.Base, t.Job.PlanBytes, t.start, time.Now())
 	return pct, done, t.Total, speed, eta
 }
 

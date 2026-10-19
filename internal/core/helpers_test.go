@@ -372,35 +372,29 @@ func TestDrawProgress(t *testing.T) {
 	}
 }
 
-func TestScanProgress(t *testing.T) {
-	dst := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dst, "a"), make([]byte, 100), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	w := &Job{Dst: dst}
+func TestProgressCountFrom(t *testing.T) {
 	start := time.Unix(1000, 0)
 	now := time.Unix(1010, 0) // 10 秒経過
 
-	p, done, speed, eta := scanProgress(w, 200, 50, start, now)
-	if p != 50 || done != 100 || speed != 5 || eta != 20 {
-		t.Errorf("scanProgress = (%d, %d, %d, %d), want (50, 100, 5, 20)", p, done, speed, eta)
+	// 100 / 200 件 = 50%、速度 10 件/秒、残り 10 秒
+	if p, speed, eta := progressCountFrom(100, 200, start, now); p != 50 || speed != 10 || eta != 10 {
+		t.Errorf("progressCountFrom = (%d, %v, %d), want (50, 10, 10)", p, speed, eta)
 	}
-
-	// total 不明（0）は 100% 扱い・残り時間なし
-	if p, _, _, eta := scanProgress(w, 0, 0, start, now); p != 100 || eta != -1 {
-		t.Errorf("total=0: p=%d eta=%d, want 100, -1", p, eta)
+	// 分母不明（0）は 100% 扱い・残りなし
+	if p, _, eta := progressCountFrom(0, 0, start, now); p != 100 || eta != -1 {
+		t.Errorf("plan=0: p=%d eta=%d, want 100, -1", p, eta)
 	}
-	// total を超えても 100% で止まる
-	if p, _, _, eta := scanProgress(w, 50, 0, start, now); p != 100 || eta != -1 {
-		t.Errorf("total<done: p=%d eta=%d, want 100, -1", p, eta)
-	}
-	// base（開始時点）より減っていても速度を負にしない
-	if _, _, speed, eta := scanProgress(w, 200, 500, start, now); speed != 0 || eta != -1 {
-		t.Errorf("減少時: speed=%d eta=%d, want 0, -1", speed, eta)
+	// 分母を超えても 100% で止まる
+	if p, _, _ := progressCountFrom(50, 20, start, now); p != 100 {
+		t.Errorf("done>plan: p=%d, want 100", p)
 	}
 	// 経過 1 秒未満は 1 秒として扱う（0 除算しない）
-	if _, _, speed, _ := scanProgress(w, 200, 0, now, now); speed != 100 {
-		t.Errorf("elapsed<1: speed=%d, want 100", speed)
+	if _, speed, _ := progressCountFrom(100, 200, now, now); speed != 100 {
+		t.Errorf("elapsed<1: speed=%v, want 100", speed)
+	}
+	// 小数の速度（2 秒で 1 件 = 0.5 件/秒）も表現できる
+	if _, speed, _ := progressCountFrom(1, 200, start, time.Unix(1002, 0)); speed != 0.5 {
+		t.Errorf("fractional speed: %v, want 0.5", speed)
 	}
 }
 
@@ -528,19 +522,33 @@ func TestCopyOneWithProgress(t *testing.T) {
 }
 
 // progressFrom は走査済みバイト数から進捗を計算する純粋関数（非同期走査の基盤）。
+// 分母は「開始時の転送先(base) + 今回の転送量(plan)」。
 func TestProgressFrom(t *testing.T) {
 	start := time.Unix(1000, 0)
 	now := time.Unix(1010, 0) // 10 秒
-	p, done, speed, eta := progressFrom(100, 200, 50, start, now)
-	if p != 50 || done != 100 || speed != 5 || eta != 20 {
-		t.Errorf("progressFrom = (%d, %d, %d, %d), want (50, 100, 5, 20)", p, done, speed, eta)
+	// base=50, plan=200, done=100 → gained=50 → 25%、速度 5 B/s、残り 30 秒
+	p, done, speed, eta := progressFrom(100, 50, 200, start, now)
+	if p != 25 || done != 100 || speed != 5 || eta != 30 {
+		t.Errorf("progressFrom = (%d, %d, %d, %d), want (25, 100, 5, 30)", p, done, speed, eta)
 	}
-	// total=0 は 100%・残りなし
+	// 差分コピー: 転送先に既に大量にあっても、今回の転送量を基準に 0% から始まる
+	if p, _, _, _ := progressFrom(1_000_000, 1_000_000, 100, start, now); p != 0 {
+		t.Errorf("計画基準で 0%% から始まるはず: p=%d", p)
+	}
+	// plan 不明（0）は 100%・残りなし
 	if p, _, _, eta := progressFrom(0, 0, 0, start, now); p != 100 || eta != -1 {
-		t.Errorf("total=0: p=%d eta=%d, want 100, -1", p, eta)
+		t.Errorf("plan=0: p=%d eta=%d, want 100, -1", p, eta)
 	}
-	// 減少時も速度を負にしない
-	if _, _, speed, eta := progressFrom(100, 200, 500, start, now); speed != 0 || eta != -1 {
+	// base より減っていても速度を負にしない
+	if _, _, speed, eta := progressFrom(100, 500, 200, start, now); speed != 0 || eta != -1 {
 		t.Errorf("減少時: speed=%d eta=%d, want 0, -1", speed, eta)
+	}
+	// 計画を超えても 100% で止まる
+	if p, _, _, _ := progressFrom(500, 50, 200, start, now); p != 100 {
+		t.Errorf("done>plan: p=%d, want 100", p)
+	}
+	// 経過 1 秒未満は 1 秒として扱う（0 除算しない）
+	if _, _, speed, _ := progressFrom(150, 50, 200, now, now); speed != 100 {
+		t.Errorf("elapsed<1: speed=%d, want 100", speed)
 	}
 }
