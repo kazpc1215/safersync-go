@@ -50,26 +50,26 @@ cat > "$out" <<EOF
 #     brew install kazpc1215/tap/safersync
 #
 class Safersync < Formula
-  desc "rsync の安全なラッパー（コピー → 照合）。進捗・残り時間表示付き"
+  # version は URL から走査させる（明示すると「URL と重複」で audit に怒られる）
+  desc "Rsync の安全なラッパー（コピー → 照合）。進捗・残り時間表示付き"
   homepage "https://github.com/kazpc1215/safersync-go"
-  version "${ver}"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/kazpc1215/safersync-go/releases/download/v#{version}/safersync-#{version}-darwin-arm64.tar.gz"
+      url "https://github.com/kazpc1215/safersync-go/releases/download/v${ver}/safersync-${ver}-darwin-arm64.tar.gz"
       sha256 "${darwin_arm}"
     else
-      url "https://github.com/kazpc1215/safersync-go/releases/download/v#{version}/safersync-#{version}-darwin-amd64.tar.gz"
+      url "https://github.com/kazpc1215/safersync-go/releases/download/v${ver}/safersync-${ver}-darwin-amd64.tar.gz"
       sha256 "${darwin_amd}"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/kazpc1215/safersync-go/releases/download/v#{version}/safersync-#{version}-linux-arm64.tar.gz"
+      url "https://github.com/kazpc1215/safersync-go/releases/download/v${ver}/safersync-${ver}-linux-arm64.tar.gz"
       sha256 "${linux_arm}"
     else
-      url "https://github.com/kazpc1215/safersync-go/releases/download/v#{version}/safersync-#{version}-linux-amd64.tar.gz"
+      url "https://github.com/kazpc1215/safersync-go/releases/download/v${ver}/safersync-${ver}-linux-amd64.tar.gz"
       sha256 "${linux_amd}"
     end
   end
@@ -86,7 +86,7 @@ class Safersync < Formula
   end
 
   test do
-    assert_match "safersync v#{version}", shell_output("#{bin}/safersync --version")
+    assert_match "safersync v${ver}", shell_output("#{bin}/safersync --version")
   end
 end
 EOF
