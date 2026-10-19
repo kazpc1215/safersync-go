@@ -172,6 +172,10 @@ make formula   # release の SHA256SUMS から Homebrew formula を生成（tap 
 - Go 側のユニットテストは [`internal/cli/cli_test.go`](internal/cli/cli_test.go)、
   [`internal/core/core_test.go`](internal/core/core_test.go)、
   [`internal/tui/tui_test.go`](internal/tui/tui_test.go)。
+- `install.sh` は [`scripts/test-install.sh`](scripts/test-install.sh) で検証します。その場で
+  現在のプラットフォーム向けの tarball と `SHA256SUMS` を作り、`file://` のミラー経由で
+  導入と `--version` 確認、不正バージョンの拒否までを通します（ネットワーク不要）。
+  CI の `go` ジョブで実行し、`shellcheck` もかけます（Linux ランナー）。
 
 ## ファイル構成
 

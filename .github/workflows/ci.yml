@@ -39,6 +39,16 @@ jobs:
           go build -trimpath -ldflags "-s -w" -o safersync .
           ./safersync --version
           file safersync
+      - name: install.sh のスモークテスト（ネットワーク不要）
+        run: sh scripts/test-install.sh
+      - name: shellcheck（install.sh / scripts）
+        # shellcheck は ubuntu ランナーに同梱。無ければ入れる（macOS は brew が要るため対象外）
+        if: runner.os == 'Linux'
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y shellcheck
+          fi
+          shellcheck install.sh scripts/test-install.sh
 
   # bash 版の bats テストを回帰テストとして実行する
   # （bin/safersync を Go バイナリへ差し替える方式。ローカル検証と同じ手順）
