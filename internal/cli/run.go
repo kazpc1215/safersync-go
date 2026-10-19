@@ -65,6 +65,8 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return ExitError
 	}
 
+	// 表示系（--version / --help）は環境に依存しないため、rsync の有無を
+	// 確認する前に処理する。
 	switch {
 	case opts.ShowVersion:
 		fmt.Fprintf(stdout, "safersync v%s\n", version.Version)
@@ -77,6 +79,8 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	start := time.Now()
 	c := newColors(stdout)
 
+	// --status も rsync を使わない（マウント情報の表示だけ）ので、rsync の
+	// 有無を確認する前に返す。
 	if opts.ShowStatus {
 		return doStatus(opts, c, stdout)
 	}
