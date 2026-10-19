@@ -80,10 +80,14 @@ jobs:
           fi
           TAG="${GITHUB_REF_NAME#v}"
           work="$(mktemp -d)"
-          git clone --quiet \
-            "https://x-access-token:${TAP_TOKEN}@github.com/kazpc1215/homebrew-tap.git" \
-            "$work/tap"
+          # トークンをクローン URL に埋め込むと、プロセス一覧や git のエラーログに
+          # 残る可能性がある。credential.helper（環境変数 TAP_TOKEN を参照）に
+          # 渡し、URL にはトークンを含めない。
+          helper='!f() { echo username=x-access-token; echo "password=${TAP_TOKEN}"; }; f'
+          git -c credential.helper="$helper" clone --quiet \
+            https://github.com/kazpc1215/homebrew-tap.git "$work/tap"
           cd "$work/tap"
+          git config credential.helper "$helper"
           cp "$GITHUB_WORKSPACE/packaging/homebrew/safersync.rb" Formula/safersync.rb
           # 古いタグの再リリースで tap を巻き戻さない
           cur=$(sed -n 's|.*/download/v\([^/]*\)/.*|\1|p' Formula/safersync.rb | head -1)
