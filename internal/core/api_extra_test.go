@@ -95,7 +95,7 @@ func TestRunJobCopyAndVerify(t *testing.T) {
 	}
 }
 
-// Frame は rsync 起動前でも安全に呼べる（走査は非同期・分母は Total）。
+// Frame は rsync 起動前でも安全に呼べる（分母は Total）。
 func TestTransferFrameBeforeStart(t *testing.T) {
 	dst := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dst, "a.txt"), []byte("x"), 0o644); err != nil {

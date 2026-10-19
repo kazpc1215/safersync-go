@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -20,37 +19,31 @@ import (
 //	- Wait は一度だけ呼ぶ（戻るまでブロック）
 type Transfer struct {
 	Job   *Job
-	Total int64 // 進捗の分母（開始時の dst バイト数 + 今回の転送量 PlanBytes）
-	Base  int64 // src/転送開始時点の dst のバイト数
+	Total int64 // 進捗の分母（今回の転送量 PlanBytes）
 
 	start    time.Time
 	cmd      *exec.Cmd
 	startErr error
 
-	// 非同期 dst 走査のキャッシュ（進捗をブロックしない）
-	scanMu       sync.Mutex
-	lastDstBytes int64
-	scanning     bool
+	// rsync の --out-format 出力から進捗を数える（転送先の再走査はしない）。
+	counter  *transferredCounter
+	lastFile string
 
 	logFile string
 	log     *os.File
 }
 
 // StartTransfer は rsync を開始する（失敗時は startErr を返すので StartedOK で確認）。
-// 進捗の分母はコピー元の走査（Job.SrcScan のキャッシュ）を、基準値はこの時点の
-// 転送先の走査を使う。
+// 進捗の分母は今回の転送量（PlanBytes）を使い、実績は rsync の出力（%l）から
+// 積み上げる。転送先を走査しないため、上書き更新でも 100% まで到達する。
 func (j *Job) StartTransfer() *Transfer {
-	t := &Transfer{Job: j, start: time.Now()}
-	// 進捗の分母は「開始時の転送先バイト数 + 今回の転送量(PlanBytes)」。総ファイル
-	// サイズを使うと差分コピーで開始直後から 100% になるため、今回の転送量を使う。
-	t.Base = ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
-	t.Total = t.Base + j.PlanBytes
-	t.lastDstBytes = t.Base
+	t := &Transfer{Job: j, start: time.Now(), Total: j.PlanBytes}
 	// 転送中ファイル名を拾うために rsync の出力を一時ファイルへ退避する
 	f, _ := os.CreateTemp("", "safersync-tui-*")
 	if f != nil {
 		t.log = f
 		t.logFile = f.Name()
+		t.counter = &transferredCounter{path: t.logFile}
 	}
 	cmd := newRsyncCmd(j, j.rsyncArgs())
 	if f != nil {
@@ -78,31 +71,20 @@ func (t *Transfer) StartedOK() bool { return t != nil && t.startErr == nil && t.
 func (t *Transfer) StartError() error { return t.startErr }
 
 // Frame は現時点の進捗（bash 版 TUI と同じ: 1 秒間隔で呼ぶ想定）。
+// rsync の出力から転送済みバイト数を読み、転送先の再走査は行わない。
 func (t *Transfer) Frame() (pct int, done, total, speed, eta int64) {
-	// 非同期走査: 実行中なら前回値を使い、呼び出し側（UI/TUI）をブロックしない。
-	t.scanMu.Lock()
-	busy := t.scanning
-	if !busy {
-		t.scanning = true
-		t.scanMu.Unlock()
-		go func() {
-			b := ScanDir(t.Job.Dst, t.Job.AllExcludePatterns()).Bytes
-			t.scanMu.Lock()
-			t.lastDstBytes = b
-			t.scanning = false
-			t.scanMu.Unlock()
-		}()
-	} else {
-		t.scanMu.Unlock()
+	if t.counter != nil {
+		_, done = t.counter.count()
+		if t.counter.last != "" {
+			t.lastFile = t.counter.last
+		}
 	}
-	t.scanMu.Lock()
-	db := t.lastDstBytes
-	t.scanMu.Unlock()
-	if db == 0 {
-		db = t.Base
+	total = t.Total
+	if total <= 0 {
+		total = done
 	}
-	pct, done, speed, eta = progressFrom(db, t.Base, t.Job.PlanBytes, t.start, time.Now())
-	return pct, done, t.Total, speed, eta
+	pct, done, speed, eta = progressFrom(done, 0, t.Total, t.start, time.Now())
+	return pct, done, total, speed, eta
 }
 
 // Wait は rsync の終了を待つ。戻り値は終了コード（0 / rsync の rc / 1）。
@@ -142,8 +124,14 @@ func (t *Transfer) Cleanup() {
 
 // CurrentFile は rsync の出力から最後に処理したファイル名を返す（無ければ空）。
 func (t *Transfer) CurrentFile() string {
+	if t.lastFile != "" {
+		return t.lastFile
+	}
 	if t.logFile == "" {
 		return ""
+	}
+	if _, _, name, ok := parseDiffLine(lastLine(t.logFile)); ok {
+		return name
 	}
 	return lastLine(t.logFile)
 }

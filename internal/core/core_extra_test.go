@@ -72,7 +72,7 @@ func TestCollectDiffContextCancel(t *testing.T) {
 func TestRsyncArgsListFiles(t *testing.T) {
 	j := &Job{Src: "/tmp/src", Dst: "/tmp/dst", FAT: true, ListFiles: true}
 	args := j.rsyncArgs()
-	if !contains(args, "--out-format=%n") {
+	if !contains(args, "--out-format=%i %l %n") {
 		t.Errorf("--out-format が付いていない: %v", args)
 	}
 	// -q は --out-format の出力（TUI のファイル名表示）を抑制してしまうため、併用しないこと
@@ -81,7 +81,7 @@ func TestRsyncArgsListFiles(t *testing.T) {
 	}
 	j2 := &Job{Src: "/tmp/src", Dst: "/tmp/dst", FAT: true, ListFiles: false}
 	args2 := j2.rsyncArgs()
-	if contains(args2, "--out-format=%n") {
+	if contains(args2, "--out-format") {
 		t.Errorf("ListFiles=false なのに --out-format が付いている: %v", args2)
 	}
 	if !contains(args2, "-q") {

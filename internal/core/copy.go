@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -179,41 +178,30 @@ func runPlain(cmd *exec.Cmd, j *Job) int {
 // ---------------------------------------------------------------------------
 
 // runWithProgress は cmd を実行しながら進捗と残り時間を表示する。
-//   - ローカル: 転送先の増分バイト数から計算（分母は「開始時の転送先 + 今回の転送量」）。
-//   - リモート: 転送先をローカル走査できないため、rsync が出力する転送ファイルの
-//     印（--out-format=%i の ">f..."）の件数から計算する。
+//
+// 進捗は rsync の --out-format（%i %l %n）から、転送された通常ファイルの
+// サイズを積み上げて求める。以前はコピー先を走査してバイト増分を測っていたが、
+// 上書き更新では増分が 0 のままになり 100% に到達しないうえ、毎秒ツリー全体を
+// 走査するため大きなコピーで負荷が高かった。
 //
 // Ctrl-C / TERM で子プロセスも確実に止め、終了コード 130 を返す。
 func runWithProgress(cmd *exec.Cmd, j *Job) int {
-	// 転送量はコピー先のバイト増分で測るため、コピー先がローカルでなければ
-	// バイト走査ができない（コピー元のリモート可否は無関係）。
-	remote := IsRemote(j.Dst)
 	start := time.Now()
-
-	// ローカルのみ: 開始時点の転送先バイト数を基準に、分母を「基準 + 今回の転送量」にする。
-	var base, total int64
-	if !remote {
-		base = ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
-		total = base + j.PlanBytes
-	}
-
-	// 走査は別 goroutine で行い、シグナル受付・描画をブロックしない（大きなツリー対策）。
-	// 直前の走査結果がまだ無ければ base を使う。
-	var scanMu sync.Mutex
-	lastDstBytes := base
-	scanning := false
 
 	// rsync の統計出力は一時ファイルへ退避し、進捗行と混ざらないようにする
 	tmp, err := os.CreateTemp("", "safersync-*")
 	if err != nil {
 		return runPlain(cmd, j) // 一時ファイルが作れないときは進捗なし
 	}
-	defer os.Remove(tmp.Name())
+	tmpName := tmp.Name()
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}()
 	cmd.Stdout = tmp
 	cmd.Stderr = tmp
 
-	// リモート先の件数進捗は、前回読んだ位置から追記分だけ数える
-	counter := &transferredCounter{path: tmp.Name()}
+	counter := &transferredCounter{path: tmpName}
 
 	// 中断（Ctrl-C / TERM / HUP）の受付。起動前に登録して取りこぼしを防ぐ
 	sigCh, stop := watchSignals()
@@ -248,48 +236,28 @@ loop:
 			if interrupted {
 				continue
 			}
-			if remote {
-				files := counter.countTransferred()
-				p, speed, eta := progressCountFrom(files, int64(j.PlanFiles), start, time.Now())
-				fmt.Fprintf(j.Out, "\r\033[K  %s",
-					DrawProgressFiles(p, files, int64(j.PlanFiles), speed, eta))
-				continue
+			_, done := counter.count()
+			total := j.PlanBytes
+			if total <= 0 {
+				total = done
 			}
-			// 非同期走査: 実行中なら前回値を使い、UI/シグナル処理を止めない
-			scanMu.Lock()
-			busy := scanning
-			if !busy {
-				scanning = true
-				scanMu.Unlock()
-				go func() {
-					b := ScanDir(j.Dst, j.AllExcludePatterns()).Bytes
-					scanMu.Lock()
-					lastDstBytes = b
-					scanning = false
-					scanMu.Unlock()
-				}()
-			} else {
-				scanMu.Unlock()
-			}
-			scanMu.Lock()
-			db := lastDstBytes
-			scanMu.Unlock()
-			if db == 0 {
-				db = base
-			}
-			p, doneBytes, speed, eta := progressFrom(db, base, j.PlanBytes, start, time.Now())
-			fmt.Fprintf(j.Out, "\r\033[K  %s", DrawProgress(p, doneBytes, total, speed, eta))
+			pct, _, speed, eta := progressFrom(done, 0, j.PlanBytes, start, time.Now())
+			fmt.Fprintf(j.Out, "\r\033[K  %s", DrawProgress(pct, done, total, speed, eta))
 		}
 	}
 
 	fmt.Fprint(j.Out, "\r\033[K")
-	if data, _ := os.ReadFile(tmp.Name()); len(data) > 0 {
-		// リモートの進捗用出力（--out-format=%i）はファイル名の羅列なので、
-		// 成功時は表示しない。失敗時のみ原因究明のため stderr へ回す。
-		if !remote {
-			_, _ = j.Out.Write(data)
-		} else if rc != 0 || interrupted {
+	// 子プロセスが終了してから書き込みを確定させる（開いたまま読むと
+	// 末尾が欠ける環境がある）。
+	_ = tmp.Close()
+	data, _ := os.ReadFile(tmpName)
+	if len(data) > 0 {
+		// 進捗用のファイル一覧（--out-format）は表示せず、失敗時だけ原因究明の
+		// ため stderr へ回す。--stats の統計行などは従来どおり stdout に出す。
+		if rc != 0 || interrupted {
 			_, _ = j.Err.Write(data)
+		} else {
+			writeNonDiffOutput(j.Out, data)
 		}
 	}
 	if interrupted {
@@ -302,29 +270,55 @@ loop:
 	return 0
 }
 
+// writeNonDiffOutput は rsync の --out-format 出力からファイルごとの差分行を
+// 取り除き、--stats などの集計行だけを w へ書く。
+func writeNonDiffOutput(w io.Writer, data []byte) {
+	for _, line := range strings.Split(string(data), "\n") {
+		if line == "" || isRsyncItemLine(line) {
+			continue
+		}
+		fmt.Fprintln(w, line)
+	}
+}
+
+// isRsyncItemLine は --out-format=%i の出力行（例: ">f+++++++++ 5 a.txt"）かを返す。
+// 統計行（"Number of files: ..." など）と区別するため、先頭の11文字が
+// rsync の itemize 形式になっているかを見る。
+func isRsyncItemLine(line string) bool {
+	if len(line) < 11 || line[11] != ' ' {
+		return false
+	}
+	if !strings.ContainsRune("<>ch.*", rune(line[0])) {
+		return false
+	}
+	return strings.ContainsRune("fdLDS", rune(line[1]))
+}
+
 // transferredCounter は rsync の --out-format=%i 出力を、前回読んだ位置から
-// 追記分だけ走査して転送された通常ファイル数（行頭 ">f"）を数える。毎tickで
+// 追記分だけ走査して転送された通常ファイル数とバイト数を数える。毎tickで
 // ファイル全体を読み直すのを避ける（転送ファイルが多いほど効く）。
 type transferredCounter struct {
 	path  string
 	off   int64
 	tail  string // 改行で終わっていない未完の行（次回に持ち越す）
-	count int64
+	files int64
+	bytes int64
+	last  string // 最後に転送されたファイル名
 }
 
-// countTransferred は前回以降に追記された分だけを数え、累計を返す。
-func (c *transferredCounter) countTransferred() int64 {
+// count は前回以降に追記された分だけを数え、累計のファイル数とバイト数を返す。
+func (c *transferredCounter) count() (files, bytes int64) {
 	f, err := os.Open(c.path)
 	if err != nil {
-		return c.count
+		return c.files, c.bytes
 	}
 	defer f.Close()
 	if _, err := f.Seek(c.off, io.SeekStart); err != nil {
-		return c.count
+		return c.files, c.bytes
 	}
 	data, err := io.ReadAll(f)
 	if err != nil {
-		return c.count
+		return c.files, c.bytes
 	}
 	c.off += int64(len(data))
 
@@ -332,16 +326,31 @@ func (c *transferredCounter) countTransferred() int64 {
 	lines := strings.Split(buf, "\n")
 	c.tail = lines[len(lines)-1] // 最後は未完の行かもしれない
 	for _, line := range lines[:len(lines)-1] {
-		if strings.HasPrefix(line, ">f") {
-			c.count++
+		if !strings.HasPrefix(line, ">f") {
+			continue
+		}
+		c.files++
+		item, size, name, ok := parseDiffLine(line)
+		if ok {
+			c.bytes += size
+			if name != "" {
+				c.last = name
+			}
+		} else if item == "" {
+			continue
 		}
 	}
-	return c.count
+	return c.files, c.bytes
+}
+
+// countTransferred は転送された通常ファイル数だけを返す（後方互換の薄いラッパ）。
+func (c *transferredCounter) countTransferred() int64 {
+	files, _ := c.count()
+	return files
 }
 
 // countTransferredFiles は、転送された通常ファイルの行数（行頭が ">f"）を数える。
 // ディレクトリ作成（"cd..."）や属性のみの変化（".f..."）は数えない。
-// 一回だけ数える用途向けの薄いラッパ（継続的に数えるときは transferredCounter）。
 func countTransferredFiles(path string) int64 {
 	return (&transferredCounter{path: path}).countTransferred()
 }
@@ -364,14 +373,10 @@ func exitCodeOf(err error) int {
 func (j *Job) rsyncArgs() []string {
 	args := append([]string{}, j.rsyncMetaOpts()...)
 	args = append(args, "--human-readable", "--partial")
-	switch {
-	case j.ListFiles:
-		args = append(args, "--out-format=%n")
-	case j.ProgressFiles:
-		// リモート先はローカルでバイトを数えられないため、転送したファイルの
-		// 印（%i の ">f..."）を行数として数える。ディレクトリ作成（"cd..."）は
-		// ">" で始まらないので数えない。
-		args = append(args, "--out-format=%i")
+	if j.ListFiles || j.ProgressFiles || j.ShowProgress {
+		// %i: itemize（">f" = 通常ファイル転送）、%l: ファイル長、%n: 名前。
+		// 進捗は %l を積み上げ、TUI は %n を表示する。
+		args = append(args, "--out-format=%i %l %n")
 	}
 	args = append(args, j.excludeArgs()...)
 	if j.Checksum {

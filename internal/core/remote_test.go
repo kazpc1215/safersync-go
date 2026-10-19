@@ -155,15 +155,20 @@ func TestRsyncArgsProgressFiles(t *testing.T) {
 	j := &Job{Src: "a", Dst: "user@host:/b", ProgressFiles: true}
 	args := j.rsyncArgs()
 	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "--out-format=%i") {
-		t.Errorf("リモート進捗は --out-format=%%i を使うはず: %v", args)
+	if !strings.Contains(joined, "--out-format=%i %l %n") {
+		t.Errorf("進捗は %%i %%l %%n を使うはず: %v", args)
 	}
 	if strings.Contains(joined, " -q ") || args[len(args)-1] == "-q" {
 		t.Errorf("出力を使うときは -q を付けない: %v", args)
 	}
-	// ListFiles（TUI のファイル名表示）が優先される
+	// ListFiles と ProgressFiles が同時でも同じ out-format を使える
 	j2 := &Job{Src: "a", Dst: "user@host:/b", ListFiles: true, ProgressFiles: true}
-	if got := strings.Join(j2.rsyncArgs(), " "); !strings.Contains(got, "--out-format=%n") {
-		t.Errorf("ListFiles が優先されるはず: %v", j2.rsyncArgs())
+	if got := strings.Join(j2.rsyncArgs(), " "); !strings.Contains(got, "--out-format=%i %l %n") {
+		t.Errorf("共通の out-format を使うはず: %v", j2.rsyncArgs())
+	}
+	// ShowProgress も %l を読むために out-format を付ける
+	j3 := &Job{Src: "a", Dst: "/b", ShowProgress: true}
+	if got := strings.Join(j3.rsyncArgs(), " "); !strings.Contains(got, "--out-format=%i %l %n") {
+		t.Errorf("ShowProgress でも out-format を付けるはず: %v", j3.rsyncArgs())
 	}
 }
