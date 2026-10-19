@@ -71,9 +71,17 @@ if [ "$got" != "$want" ]; then
 fi
 
 echo "-- 異常系: 不正なバージョンを拒否するか"
-if SAFERSYNC_RELEASES_URL="file://$mirror" PREFIX="$prefix" sh "$root/install.sh" "not-a-version" 2>/dev/null; then
-  echo "✗ 不正なバージョンを拒否しなかった" >&2
-  exit 1
-fi
+for bad in \
+  "not-a-version" \
+  "v1.2" \
+  "v1.2.3/../../evil" \
+  "v1.2.3;rm -rf /" \
+  'v1.2.3$(id)' \
+  "v1.2.3 evil"; do
+  if SAFERSYNC_RELEASES_URL="file://$mirror" PREFIX="$prefix" sh "$root/install.sh" "$bad" 2>/dev/null; then
+    echo "✗ 不正なバージョンを拒否しなかった: ${bad}" >&2
+    exit 1
+  fi
+done
 
 echo "✓ install.sh スモークテスト OK"
