@@ -5,6 +5,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sync/atomic"
@@ -35,8 +36,10 @@ func (m *model) terminateChild() {
 	}
 }
 
-// RunTui は対話ウィザードを実行し、終了コードを返す。// 呼び出し側（cli）は対話端末かどうかを確認してから呼ぶ。
-func RunTui(mountRoot, from, to string) int {
+// RunTui は対話ウィザードを実行し、終了コードを返す。
+// 呼び出し側（cli）は対話端末かどうかを確認してから呼ぶ。
+// in / out は対話の入出力（nil なら Bubble Tea の既定 = os.Stdin / os.Stdout）。
+func RunTui(mountRoot, from, to string, in io.Reader, out io.Writer) int {
 	// 引数で指定されていない方だけ、前回使ったパスを補う（利便性向上）。
 	// 明示指定（例: --to X）を履歴で上書きしない。
 	from, to = fillFromHistory(from, to)
@@ -48,7 +51,14 @@ func RunTui(mountRoot, from, to string) int {
 	case stOptions, stSource, stSourceDir:
 		m.loadSourceMenu()
 	}
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	popts := []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion()}
+	if in != nil {
+		popts = append(popts, tea.WithInput(in))
+	}
+	if out != nil {
+		popts = append(popts, tea.WithOutput(out))
+	}
+	p := tea.NewProgram(m, popts...)
 	m.prog = p
 
 	// 外部シグナルでも転送中の rsync を孤児にしない。

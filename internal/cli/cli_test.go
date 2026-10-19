@@ -456,3 +456,38 @@ func TestHelp_exitCodeContract(t *testing.T) {
 		t.Errorf("--help に --verify-only の優先関係の説明が無い")
 	}
 }
+
+// 端末判定は注入された writer/reader で行い、os.Stdout 固定にしないこと。
+func TestIsTerminalWriterReader(t *testing.T) {
+	var buf bytes.Buffer
+	if isTerminalWriter(&buf) || isTerminalReader(&buf) {
+		t.Error("バッファを端末と誤認している")
+	}
+	if isTerminalWriter(nil) || isTerminalReader(nil) {
+		t.Error("nil を端末と誤認している")
+	}
+	devnull, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer devnull.Close()
+	if isTerminalWriter(devnull) {
+		t.Error("/dev/null を端末と誤認している")
+	}
+}
+
+// --tui は、注入された入出力が端末でなければ（テストのバッファでは）起動せず、
+// 分かりやすいエラーで止まること。os.Stdin に依存しないことを固定する。
+func TestRun_tuiRequiresTTY(t *testing.T) {
+	if !core.RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	var out, errOut bytes.Buffer
+	code := run([]string{"--tui", "/src", "/dst"}, strings.NewReader(""), &out, &errOut)
+	if code != ExitError {
+		t.Fatalf("want exit %d, got %d (stderr=%q)", ExitError, code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "対話端末") {
+		t.Errorf("対話端末でのみ起動できる旨が出ていない: %q", errOut.String())
+	}
+}

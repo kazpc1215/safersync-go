@@ -19,8 +19,7 @@ import (
 type colors struct{ bold, red, green, yellow, blue, reset string }
 
 func newColors(stdout io.Writer) colors {
-	f, ok := stdout.(*os.File)
-	if !ok || !isTTY(f) {
+	if !isTerminalWriter(stdout) {
 		return colors{}
 	}
 	return colors{bold: "\x1b[1m", red: "\x1b[31m", green: "\x1b[32m",
@@ -34,8 +33,27 @@ func isTTY(f *os.File) bool {
 	return term.IsTerminal(f.Fd())
 }
 
+// isTerminalWriter / isTerminalReader は、注入された入出力が端末かどうかを返す。
+// *os.File 以外（テストのバッファなど）は端末ではない扱い。Run は writer を
+// 注入できる契約なので、端末判定も os.Stdout 固定にはせず渡された値で行う。
+func isTerminalWriter(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	return ok && isTTY(f)
+}
+
+func isTerminalReader(r io.Reader) bool {
+	f, ok := r.(*os.File)
+	return ok && isTTY(f)
+}
+
 // Run は safersync の本体。bash 版 main() と同じ流れ・出力・終了コード。
+// 標準入力は TUI 起動可否の判定と TUI 本体にだけ使う。
 func Run(argv []string, stdout, stderr io.Writer) int {
+	return run(argv, os.Stdin, stdout, stderr)
+}
+
+// run は Run の実体（stdin を注入できる版。テスト用）。
+func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	noArgs := len(argv) == 0
 
 	opts, err := Parse(argv)
@@ -70,14 +88,15 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 
 	// --- 対話ウィザード（TUI）---
 	//   引数なしで対話端末なら自動起動。--tui/-i なら明示的に起動する。
-	inTTY, outTTY := isTTY(os.Stdin), isTTY(os.Stdout)
+	//   端末判定は注入された入出力（テストではバッファ）で行う。
+	inTTY, outTTY := isTerminalReader(stdin), isTerminalWriter(stdout)
 	if opts.TUI || (noArgs && inTTY && outTTY) {
 		if !inTTY || !outTTY {
 			fmt.Fprintln(stderr, "✗ TUI は対話端末でのみ起動できます（--help を参照）")
 			return ExitError
 		}
 		// 対話ウィザード（Bubble Tea）。戻り値は CLI と同じ終了コード体系
-		return tui.RunTui(mountRootOf(opts), opts.From, opts.To)
+		return tui.RunTui(mountRootOf(opts), opts.From, opts.To, stdin, stdout)
 	}
 
 	// --- 実行対象ジョブの決定（単発 or 複数）---
