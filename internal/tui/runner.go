@@ -76,6 +76,12 @@ func startPlanCmd(m *model) tea.Cmd {
 			}
 		}()
 		plan := j.PlanChanges()
+		if ctx.Err() != nil {
+			// キャンセル済みなら、重い SrcScan も planReady の送信も行わない
+			// （終了処理と競合して不要なメッセージを送らない）。
+			close(done)
+			return nil
+		}
 		s := j.SrcScan()
 		close(done)
 		prog.Send(planReadyMsg{srcFiles: s.Files, srcBytes: s.Bytes, plan: plan})
