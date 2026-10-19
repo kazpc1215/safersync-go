@@ -61,8 +61,9 @@ func DrawProgress(pct int, done, total, speed, eta int64) string {
 	return b.String()
 }
 
-// DrawProgressFiles はリモート先など転送量（バイト）をローカルで数えられない
-// ときの進捗1行分（件数ベース）。速度は「件/秒」になる。
+// DrawProgressFiles は件数ベースの進捗1行分（速度は「件/秒」）。
+// 現在の CLI / TUI は %l を使ったバイト進捗に統一しているため未使用だが、
+// 表示書式のテストと後方互換のため残している。
 func DrawProgressFiles(pct int, done, total int64, speed float64, eta int64) string {
 	var b strings.Builder
 	if width := progressWidth(); width > 0 {
@@ -379,7 +380,7 @@ func exitCodeOf(err error) int {
 func (j *Job) rsyncArgs() []string {
 	args := append([]string{}, j.rsyncMetaOpts()...)
 	args = append(args, "--human-readable", "--partial")
-	if j.ListFiles || j.ProgressFiles || j.ShowProgress {
+	if j.ListFiles || j.ShowProgress {
 		// %i: itemize（">f" = 通常ファイル転送）、%l: ファイル長、%n: 名前。
 		// 進捗は %l を積み上げ、TUI は %n を表示する。
 		args = append(args, "--out-format=%i %l %n")
@@ -392,7 +393,7 @@ func (j *Job) rsyncArgs() []string {
 	switch {
 	case j.Verbose:
 		args = append(args, "--stats")
-	case j.ListFiles || j.ProgressFiles || j.ShowProgress:
+	case j.ListFiles || j.ShowProgress:
 		// -q は --out-format の出力（進捗の数え上げ・TUI のファイル名表示）も
 		// 抑制してしまうため、出力を使うときは付けない（エラーは stderr に出る）。
 	default:
@@ -437,7 +438,7 @@ func progressFrom(doneBytes, base, planBytes int64, start time.Time, now time.Ti
 }
 
 // progressCountFrom は転送済みファイル数から進捗を計算する（件数ベース）。
-// リモート先など、転送量（バイト）をローカルで数えられない場合に使う。
+// 現在はバイト進捗に統一しているため未使用（後方互換のため残す）。
 // 速度は件/秒（小数）で返す。
 func progressCountFrom(doneFiles, planFiles int64, start time.Time, now time.Time) (p int, speed float64, eta int64) {
 	elapsed := int64(now.Sub(start).Seconds())
@@ -564,12 +565,6 @@ func CopyOne(j *Job) int {
 	if err := ensureLocalDest(j.Dst); err != nil {
 		fmt.Fprintf(j.Err, "✗ コピー先を作成できません: %s\n", j.Dst)
 		return 1
-	}
-
-	// リモート先の進捗はバイト数をローカルで数えられないため、ファイルの印を
-	// 数えるモードに切り替える（rsync 引数の組み立て前に設定する）。
-	if j.ShowProgress && IsRemote(j.Dst) {
-		j.ProgressFiles = true
 	}
 
 	if plan.Files > 0 {

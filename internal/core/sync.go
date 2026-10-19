@@ -25,17 +25,16 @@ var DefaultExcludes = []string{
 // Job は「コピー → 照合」の1回の処理。CLI・（後の）TUI の両方から使う。
 // 画面出力は Out / Err に流すので、core 自体は表示方法を知らない。
 type Job struct {
-	Src, Dst      string
-	Excludes      []string // 追加除外（--exclude、複数可）
-	FAT           bool     // true: -rlt --modify-window=2（exFAT 既定）/ false: -a
-	Checksum      bool     // -c
-	IgnoreSpace   bool     // --ignore-space-check
-	Verbose       bool     // -v（rsync --stats）
-	ShowProgress  bool     // 進捗表示するか（端末のときだけ true にして渡す）
-	ListFiles     bool     // TUI 用: 転送中ファイル名を --out-format で出力する
-	ProgressFiles bool     // リモート先の進捗用: 転送ファイルの印を --out-format=%i で出力する
-	NoCaffeinate  bool
-	DryRun        bool
+	Src, Dst     string
+	Excludes     []string // 追加除外（--exclude、複数可）
+	FAT          bool     // true: -rlt --modify-window=2（exFAT 既定）/ false: -a
+	Checksum     bool     // -c
+	IgnoreSpace  bool     // --ignore-space-check
+	Verbose      bool     // -v（rsync --stats）
+	ShowProgress bool     // 進捗表示するか（端末のときだけ true にして渡す）
+	ListFiles    bool     // TUI 用: 転送中ファイル名を --out-format で出力する
+	NoCaffeinate bool
+	DryRun       bool
 
 	Log func(msg string) // ログ hook（nil 可。core.LogMsg を渡す）
 	Out io.Writer        // 通常出力（stdout）

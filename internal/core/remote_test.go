@@ -151,28 +151,21 @@ func TestScanDirRemoteIsZero(t *testing.T) {
 	}
 }
 
-func TestRsyncArgsProgressFiles(t *testing.T) {
-	j := &Job{Src: "a", Dst: "user@host:/b", ProgressFiles: true}
-	args := j.rsyncArgs()
-	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "--out-format=%i %l %n") {
-		t.Errorf("進捗は %%i %%l %%n を使うはず: %v", args)
+func TestRsyncArgsOutputFormat(t *testing.T) {
+	// ローカル・リモートとも、進捗と TUI のファイル名表示は同じ out-format を使う。
+	tests := []*Job{
+		{Src: "a", Dst: "user@host:/b", ShowProgress: true},
+		{Src: "a", Dst: "/b", ShowProgress: true},
+		{Src: "a", Dst: "/b", ListFiles: true},
 	}
-	if strings.Contains(joined, " -q ") || args[len(args)-1] == "-q" {
-		t.Errorf("出力を使うときは -q を付けない: %v", args)
-	}
-	// ListFiles と ProgressFiles が同時でも同じ out-format を使える
-	j2 := &Job{Src: "a", Dst: "user@host:/b", ListFiles: true, ProgressFiles: true}
-	if got := strings.Join(j2.rsyncArgs(), " "); !strings.Contains(got, "--out-format=%i %l %n") {
-		t.Errorf("共通の out-format を使うはず: %v", j2.rsyncArgs())
-	}
-	// ShowProgress も %l を読むために out-format を付け、-q を付けない
-	j3 := &Job{Src: "a", Dst: "/b", ShowProgress: true}
-	args3 := j3.rsyncArgs()
-	if got := strings.Join(args3, " "); !strings.Contains(got, "--out-format=%i %l %n") {
-		t.Errorf("ShowProgress でも out-format を付けるはず: %v", args3)
-	}
-	if contains(args3, "-q") {
-		t.Errorf("ShowProgress 時に -q が付いている（進捗が出ない）: %v", args3)
+	for _, j := range tests {
+		args := j.rsyncArgs()
+		joined := strings.Join(args, " ")
+		if !strings.Contains(joined, "--out-format=%i %l %n") {
+			t.Errorf("out-format が無い: %v", args)
+		}
+		if contains(args, "-q") {
+			t.Errorf("出力を使うときに -q が付いている: %v", args)
+		}
 	}
 }
