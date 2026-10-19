@@ -49,7 +49,7 @@ func (m *model) selectRowAt(y int) {
 			m.sel = i
 		}
 	case stOptions:
-		if i := y - m.listTop(); i >= 0 && i < 6 {
+		if i := y - m.listTop(); i >= 0 && i < numOptions {
 			m.sel = i
 		}
 	case stSourceDir, stDestDir:

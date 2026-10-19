@@ -28,6 +28,9 @@ const (
 	stDone                    // 完了レポート
 )
 
+// numOptions は stOptions に並ぶ項目数（optionLine の行数・選択範囲と一致させる）。
+const numOptions = 6
+
 // -----------------------------------------------------------------------
 // 非同期メッセージ（goroutine → tea.Program.Send）
 // -----------------------------------------------------------------------
@@ -673,7 +676,7 @@ func (m *model) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) updateOptions(key string) (tea.Model, tea.Cmd) {
-	n := 6
+	n := numOptions
 	switch key {
 	case "up", "k":
 		m.sel = mod(m.sel-1, n)
