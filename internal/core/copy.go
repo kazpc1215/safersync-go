@@ -524,16 +524,21 @@ func CopyOne(j *Job) int {
 			fmt.Fprintf(j.Out, "    実行が必要な変更: %d 件（シンボリックリンク・ディレクトリ・属性など） ※dry-run\n",
 				plan.Changes)
 		}
+		// 見出しは「コピーするファイル」なので、詳細も通常ファイル（>f）だけを
+		// 数える。ディレクトリ作成などは上の「実行が必要な変更」に含まれる。
 		shown := 0
 		for _, l := range plan.Lines {
+			if !strings.HasPrefix(l, ">f") {
+				continue
+			}
 			if shown >= 20 {
 				break
 			}
 			fmt.Fprintf(j.Out, "    %s\n", l)
 			shown++
 		}
-		if len(plan.Lines) > 20 {
-			fmt.Fprintf(j.Out, "    …（他 %d 件）\n", len(plan.Lines)-20)
+		if plan.Files > shown {
+			fmt.Fprintf(j.Out, "    …（他 %d 件）\n", plan.Files-shown)
 		}
 		fmt.Fprintln(j.Out, "    （記号: > 新規/更新, f ファイル, + 新規作成, s サイズ, t 時刻）")
 		return 0

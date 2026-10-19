@@ -46,16 +46,17 @@ func DefaultMountRoot() string {
 
 // IsMountPoint はパスそのものがマウントポイントかどうか。
 //
-// まず statfs のファイルシステム ID を親と比べる。異なればマウントポイント。
-// 同じ場合は bind mount の可能性があるため、`mount` の出力も照合する
-// （bash 版と同じ表記。Linux の \040 エスケープにも対応）。
+// `mount` の出力にあればマウントポイント。macOS の /Volumes のように
+// firmlink で親と fsid が異なるだけのパスを誤判定しないよう、statfs は
+// `mount` が使えない環境のフォールバックにだけ使う。
+// （bash 版と同じ表記。Linux の \040 エスケープにも対応する）
 func IsMountPoint(path string) bool {
 	is, _ := isMountPointKnown(path)
 	return is
 }
 
 // isMountPointKnown は IsMountPoint の判定と、判定できたかどうかを返す。
-// statfs も mount コマンドも使えない環境では known=false になる。
+// mount も statfs も使えない環境では known=false になる。
 func isMountPointKnown(path string) (is, known bool) {
 	fi, err := os.Stat(path)
 	if err != nil || !fi.IsDir() {
@@ -64,17 +65,12 @@ func isMountPointKnown(path string) (is, known bool) {
 	if path == "/" {
 		return true, true
 	}
-	if knownFs, byFs := mountPointByFsid(path); knownFs {
-		if byFs {
-			return true, true
-		}
-		// 同じ fsid でも bind mount かもしれないため mount 出力を確認する。
+	// mount の出力を優先する。statfs の fsid 比較だけでは、macOS の
+	// firmlink（/Volumes など）を実マウントと誤判定してしまう。
+	if out, err := exec.Command("mount").Output(); err == nil {
+		return containsMountPoint(string(out), path), true
 	}
-	out, err := exec.Command("mount").Output()
-	if err != nil {
-		return false, false
-	}
-	return containsMountPoint(string(out), path), true
+	return mountPointByFsid(path)
 }
 
 // mountPointByFsid は statfs の Fsid を親と比較する。

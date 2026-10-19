@@ -5,6 +5,7 @@ package core
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -245,6 +246,11 @@ func TestDestIsMounted(t *testing.T) {
 	}
 	if !DestIsMounted(root, root) {
 		t.Error("基点そのものは判定対象外のはず")
+	}
+	// macOS の /Volumes は firmlink で / と fsid が異なるが実マウントではない。
+	// その下の存在しないボリュームを「マウント済み」と誤判定しない。
+	if DestIsMounted("/Volumes/NO_SUCH_VOLUME_SAFERSYNC/alpha", "/Volumes") {
+		t.Error("/Volumes 配下の未マウント先をマウント済みと判定した")
 	}
 
 	// 実マウントポイントと基点の関係（純関数）。基点自体がマウントポイントの
@@ -627,6 +633,32 @@ func TestCopyOneDryRun(t *testing.T) {
 	}
 	if _, err := os.Stat(dst); !os.IsNotExist(err) {
 		t.Errorf("dry-run なのにコピー先が作られている: %v", err)
+	}
+}
+
+// dry-run の詳細一覧は「コピーするファイル」だけを数え、ディレクトリ作成で
+// 「他 N 件」がずれないこと（bash 版 bats の回帰テストと同じ期待値）。
+func TestCopyOneDryRunCountsRegularFilesOnly(t *testing.T) {
+	if !RsyncAvailable() {
+		t.Skip("rsync が見つからないためスキップ")
+	}
+	src := t.TempDir()
+	for i := 0; i < 27; i++ {
+		writeTestFile(t, filepath.Join(src, fmt.Sprintf("f%02d.txt", i)), "x")
+	}
+	dst := filepath.Join(t.TempDir(), "backup")
+
+	var out, errb bytes.Buffer
+	j := &Job{Src: src, Dst: dst, FAT: true, DryRun: true, Out: &out, Err: &errb}
+	if rc := CopyOne(j); rc != 0 {
+		t.Fatalf("CopyOne = %d, err=%s", rc, errb.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "コピーするファイル: 27 件") {
+		t.Errorf("件数の表示がおかしい:\n%s", got)
+	}
+	if !strings.Contains(got, "…（他 7 件）") {
+		t.Errorf("ディレクトリ作成を詳細の件数に含めている:\n%s", got)
 	}
 }
 
