@@ -11,10 +11,10 @@ jobs:
   build:
     runs-on: macos-latest # shasum を使うため。darwin/linux のクロスコンパイルはどの OS でも可能
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # formula を main へ同期するため main を取得する
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: タグとバージョンの一致を確認
@@ -29,7 +29,7 @@ jobs:
       - name: Homebrew formula を生成（このリリースの sha256 で）
         run: make formula
       - name: GitHub Release へ添付
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/release/*.tar.gz
