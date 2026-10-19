@@ -133,6 +133,10 @@ func RsyncAvailable() bool {
 // 撮影中の SD カードなどでは dry-run でも起こり得るため、これは成功扱いにする。
 const rsyncExitVanished = 24
 
+// IsVanishedExit は rsync の終了コードが「転送中にファイルが消えた」(24) かを返す。
+// dry-run（CollectDiff）・実コピー・TUI のすべてで同じ扱い（成功＋警告）にする。
+func IsVanishedExit(rc int) bool { return rc == rsyncExitVanished }
+
 // newDiffCmd は dry-run 用の rsync コマンドを作る。j.Ctx があればキャンセル対応
 // （TUI の Ctrl-C でスキャン中の rsync を止める）。
 func newDiffCmd(j *Job, args []string) *exec.Cmd {

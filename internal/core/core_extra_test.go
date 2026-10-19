@@ -171,3 +171,15 @@ func contains(list []string, v string) bool {
 	}
 	return false
 }
+
+// rsync の rc=24（転送中にファイルが消えた）は成功扱いにそろえる。
+func TestIsVanishedExit(t *testing.T) {
+	if !IsVanishedExit(24) {
+		t.Error("rc=24 を vanished と判定していない")
+	}
+	for _, rc := range []int{0, 1, 23, 25, 130} {
+		if IsVanishedExit(rc) {
+			t.Errorf("rc=%d を vanished と誤判定した", rc)
+		}
+	}
+}

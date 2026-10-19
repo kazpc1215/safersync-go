@@ -150,9 +150,13 @@ func (m *model) beginTransfer() error {
 		for {
 			select {
 			case rc := <-returned:
-				switch rc {
-				case 0:
+				switch {
+				case rc == 0:
 					core.LogMsg("COPY done   " + job.Src + " -> " + job.Dst + " [tui]")
+				case core.IsVanishedExit(rc):
+					// dry-run / 照合と同じく成功扱い（消えたファイルは次回拾える）
+					core.LogMsg("COPY done   " + job.Src + " -> " + job.Dst + " (vanished files, rc=24) [tui]")
+					rc = 0
 				default:
 					core.LogMsg("COPY failed " + job.Src + " -> " + job.Dst + " (rc=" + strconv.Itoa(rc) + ") [tui]")
 				}

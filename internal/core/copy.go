@@ -586,6 +586,12 @@ func CopyOne(j *Job) int {
 	if rc == ExitInterrupted {
 		return ExitInterrupted
 	}
+	if IsVanishedExit(rc) {
+		// 撮影中の SD カードなどで、走査後に消えたファイル。次の実行で拾えるため
+		// 失敗扱いにしない（dry-run / 照合と同じ扱いにそろえる）。
+		fmt.Fprintf(j.Err, "! 転送中に消えたファイルがありました（rc=%d、次回の実行で再確認されます）\n", rc)
+		rc = 0
+	}
 	if rc != 0 {
 		fmt.Fprintf(j.Err, "✗ rsync がエラー終了しました (rc=%d)\n", rc)
 		j.log(fmt.Sprintf("COPY failed %s -> %s (rc=%d)", j.Src, j.Dst, rc))
