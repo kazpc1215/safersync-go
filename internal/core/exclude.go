@@ -92,6 +92,12 @@ func globRunes(pat, s []rune) bool {
 			}
 			// 連続する "*" が 2 個以上なら "/" をまたぐ。
 			crossSlash := stars >= 2
+			// "**/" は 0 個以上のディレクトリに一致する（rsync と同じ）。
+			// "**/*.tmp" がルート直下の "x.tmp" にも一致するよう、
+			// スラッシュを消費しない選択肢も試す。
+			if crossSlash && len(pat) > 0 && pat[0] == '/' && globRunes(pat[1:], s) {
+				return true
+			}
 			if len(pat) == 0 {
 				if crossSlash {
 					return true

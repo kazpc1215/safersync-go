@@ -108,3 +108,30 @@ func TestScanDirPathPatterns(t *testing.T) {
 		t.Errorf(`"cache" 除外後 = %d, want 2（同名ファイルも除外）`, got)
 	}
 }
+
+// "**/" は 0 個以上のディレクトリに一致する（ルート直下も対象）。
+func TestMatchExclude_doubleStarSlash(t *testing.T) {
+	cases := []struct {
+		pattern, path string
+		isDir         bool
+		want          bool
+	}{
+		{"**/*.tmp", "x.tmp", false, true},
+		{"**/*.tmp", "a/x.tmp", false, true},
+		{"**/*.tmp", "a/b/x.tmp", false, true},
+		{"**/*.tmp", "x.txt", false, false},
+		{"**/cache", "cache", true, true},
+		{"**/cache", "a/cache", true, true},
+		{"**/cache/", "cache", true, true},
+		{"**/cache/", "cache", false, false},
+		{"a/**/b", "a/b", false, true},
+		{"a/**/b", "a/x/b", false, true},
+		{"a/**/b", "a/x/y/b", false, true},
+		{"a/**/b", "a/x/c", false, false},
+	}
+	for _, c := range cases {
+		if got := MatchExclude(c.pattern, c.path, c.isDir); got != c.want {
+			t.Errorf("MatchExclude(%q, %q, %v) = %v, want %v", c.pattern, c.path, c.isDir, got, c.want)
+		}
+	}
+}
