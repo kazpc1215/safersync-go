@@ -63,8 +63,10 @@ formula は `dist/release/SHA256SUMS` から自動生成し、tarball の URL �
 
 リリースを公開すると `Release` ワークフローが、そのリリースの `SHA256SUMS` から formula を
 生成して本リポジトリの `main` へ自動反映し、リリースの添付ファイルにも含めます。
-tap リポジトリ（`kazpc1215/homebrew-tap`）への反映は現状手動で、リリース後に本リポジトリの
-`packaging/homebrew/safersync.rb` を tap の `Formula/safersync.rb` へコピーします。
+tap リポジトリ（`kazpc1215/homebrew-tap`）へも同じ内容を push します。ただし別リポジトリへ
+push するための Secrets `TAP_GITHUB_TOKEN`（tap への push 権を持つ PAT）が必要で、未設定の
+ときは自動反映をスキップします。その場合はリリース後に本リポジトリの
+`packaging/homebrew/safersync.rb` を tap の `Formula/safersync.rb` へコピーしてください。
 
 ### 方法 D: ソースからビルド（Go 1.27 以降が入っている場合）
 

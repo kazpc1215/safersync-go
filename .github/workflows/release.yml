@@ -50,7 +50,8 @@ jobs:
           git fetch origin main
           git checkout -B main origin/main
           # 古いタグの再リリースで巻き戻さない
-          cur=$(grep -m1 'version "' packaging/homebrew/safersync.rb | sed -E 's/.*version "([^"]+)".*/\1/')
+          # （version 行は廃止したので URL から取る。例: .../download/v1.5.3/...）
+          cur=$(sed -n 's|.*/download/v\([^/]*\)/.*|\1|p' packaging/homebrew/safersync.rb | head -1)
           if [ "$(printf '%s\n%s\n' "$cur" "$TAG" | sort -V | tail -1)" != "$TAG" ]; then
             echo "tag v$TAG は formula の v$cur より古いため同期をスキップします"
             exit 0
@@ -65,3 +66,37 @@ jobs:
           git add packaging/homebrew/safersync.rb
           git commit -m "chore: sync Homebrew formula with ${GITHUB_REF_NAME}"
           git push origin main
+      # tap リポジトリ（別リポジトリ）へ formula を反映する。
+      # 別リポジトリへ push できるトークンが要るため、リポジトリ Secrets に
+      # TAP_GITHUB_TOKEN（tap への push 権を持つ PAT）があるときだけ実行する。
+      # 未設定なら何もせず終了する（README のとおり手動で同期する）。
+      - name: Homebrew tap へ formula を同期
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "TAP_GITHUB_TOKEN が未設定のためスキップします（tap は手動で同期してください）"
+            exit 0
+          fi
+          TAG="${GITHUB_REF_NAME#v}"
+          work="$(mktemp -d)"
+          git clone --quiet \
+            "https://x-access-token:${TAP_TOKEN}@github.com/kazpc1215/homebrew-tap.git" \
+            "$work/tap"
+          cd "$work/tap"
+          cp "$GITHUB_WORKSPACE/packaging/homebrew/safersync.rb" Formula/safersync.rb
+          # 古いタグの再リリースで tap を巻き戻さない
+          cur=$(sed -n 's|.*/download/v\([^/]*\)/.*|\1|p' Formula/safersync.rb | head -1)
+          if [ -n "$cur" ] && [ "$(printf '%s\n%s\n' "$cur" "$TAG" | sort -V | tail -1)" != "$TAG" ]; then
+            echo "tag v$TAG は tap の v$cur より古いため同期をスキップします"
+            exit 0
+          fi
+          if git diff --quiet -- Formula/safersync.rb; then
+            echo "tap の formula は最新です（変更なし）"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/safersync.rb
+          git commit -m "safersync ${TAG}"
+          git push origin HEAD:main

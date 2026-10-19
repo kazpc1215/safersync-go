@@ -12,7 +12,7 @@
 #     packaging/homebrew/update-formula.sh dist/release/SHA256SUMS 1.4.0
 #
 #   生成後、tap リポジトリ（kazpc1215/homebrew-tap）の Formula/safersync.rb へ
-#   コピーして使う。
+#   コピーして使う（Release ワークフローは TAP_GITHUB_TOKEN があれば自動で行う）。
 set -eu
 
 sums=${1:?SHA256SUMS のパスを指定してください}
